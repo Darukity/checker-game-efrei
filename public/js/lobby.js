@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleIncomingInvitation(data);
     });
 
+    wsManager.on('GAME_ACCEPTED', (data) => {
+        // Redirect both players to the game page
+        window.location.href = `game.html?gameId=${data.gameId}`;
+    });
+
     wsManager.on('ERROR', (data) => {
         console.error('Erreur WebSocket:', data);
         updateStatusInfo('erreur', true);
@@ -75,7 +80,7 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
     if (!currentLobbyInvite) return;
 
     try {
-        // Créer une nouvelle partie
+        // Create a new game via POST request
         const response = await fetch('/api/games', {
             method: 'POST',
             headers: {
@@ -88,21 +93,17 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
             })
         });
 
-        const game = await response.json();
+        if (!response.ok) {
+            throw new Error('Erreur lors de la création de la partie');
+        }
 
-        // Envoyer l'invitation via WebSocket
-        wsManager.send('INVITE_GAME', {
-            toUserId: currentLobbyInvite.userId,
-            gameId: game.id
-        });
+        const game = await response.json();
 
         closeInviteModal();
         alert('Invitation envoyée à ' + currentLobbyInvite.username);
 
-        // Rediriger vers la page du jeu
-        setTimeout(() => {
-            window.location.href = `game.html?gameId=${game.id}`;
-        }, 1000);
+        // The server will broadcast the invitation to the other player
+        // Wait for them to accept before redirecting
     } catch (err) {
         console.error('Erreur lors de la création de la partie:', err);
         alert('Erreur lors de la création de la partie');
@@ -111,11 +112,61 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
 
 function handleIncomingInvitation(data) {
     const { fromUserId, gameId } = data;
-    const accepted = confirm('Vous avez reçu une invitation à jouer! Accepter?');
+    
+    // Get the username of the inviter
+    fetch(`/api/user/${fromUserId}`)
+        .then(res => res.json())
+        .then(user => {
+            const accepted = confirm(`${user.username} vous invite à jouer! Accepter?`);
 
-    if (accepted) {
-        window.location.href = `game.html?gameId=${gameId}`;
-    }
+            if (accepted) {
+                // Send POST request to accept the invitation
+                fetch(`/api/games/${gameId}/accept`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        userId: localStorage.getItem('userId')
+                    })
+                })
+                .then(res => res.json())
+                .then(() => {
+                    // Server will broadcast GAME_ACCEPTED to both players
+                    // Redirect handled by GAME_ACCEPTED listener
+                })
+                .catch(err => {
+                    console.error('Erreur lors de l\'acceptation:', err);
+                    alert('Erreur lors de l\'acceptation de l\'invitation');
+                });
+            }
+        })
+        .catch(err => {
+            console.error('Erreur lors de la récupération de l\'utilisateur:', err);
+            const accepted = confirm('Vous avez reçu une invitation à jouer! Accepter?');
+            
+            if (accepted) {
+                fetch(`/api/games/${gameId}/accept`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        userId: localStorage.getItem('userId')
+                    })
+                })
+                .then(res => res.json())
+                .then(() => {
+                    // Server will broadcast GAME_ACCEPTED to both players
+                })
+                .catch(err => {
+                    console.error('Erreur lors de l\'acceptation:', err);
+                    alert('Erreur lors de l\'acceptation de l\'invitation');
+                });
+            }
+        });
 }
 
 function updateStatusInfo(status, isError = false) {

@@ -1,10 +1,35 @@
 // ==================== GAME.JS ====================
 
 const BOARD_SIZE = 8;
+
+function initializeBoard() {
+    const board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+
+    // Pions noirs (joueur 1) - haut
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+            if ((row + col) % 2 === 1) {
+                board[row][col] = 1;
+            }
+        }
+    }
+
+    // Pions blancs (joueur 2) - bas
+    for (let row = 5; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+            if ((row + col) % 2 === 1) {
+                board[row][col] = 2;
+            }
+        }
+    }
+
+    return board;
+}
+
 let gameState = {
     gameId: null,
     currentPlayerId: null,
-    board: [],
+    board: initializeBoard(), // Initialize with empty board
     selectedSquare: null,
     validMoves: [],
     isPlayerTurn: false,
@@ -33,24 +58,57 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     wsManager.on('GAME_STATE', (data) => {
         console.log('État de la partie reçu:', data);
-        gameState.board = JSON.parse(data.game_state).board || initializeBoard();
-        gameState.opponentId = data.player1_id === gameState.currentPlayerId ? data.player2_id : data.player1_id;
-        gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
-        gameState.gameStatus = data.status;
+        console.log('Type of game_state:', typeof data.game_state);
+        
+        try {
+            // PostgreSQL JSONB is returned as an object by the pg library
+            // When sent via WebSocket with JSON.stringify, it remains an object
+            let gameStateData = data.game_state;
+            
+            // If for some reason it's a string, parse it
+            if (typeof gameStateData === 'string') {
+                console.log('Parsing game_state string:', gameStateData);
+                gameStateData = JSON.parse(gameStateData);
+            }
+            
+            // Extract board or initialize new one
+            if (gameStateData && gameStateData.board && Array.isArray(gameStateData.board)) {
+                console.log('Using board from game_state');
+                gameState.board = gameStateData.board;
+            } else {
+                console.log('Initializing new board');
+                gameState.board = initializeBoard();
+            }
+            
+            gameState.opponentId = data.player1_id === gameState.currentPlayerId ? data.player2_id : data.player1_id;
+            gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
+            gameState.gameStatus = data.status;
 
-        document.getElementById('player1Name').textContent = data.player1_username || 'Joueur 1';
-        document.getElementById('player2Name').textContent = data.player2_username || 'Joueur 2';
+            document.getElementById('player1Name').textContent = data.player1_username || 'Joueur 1';
+            document.getElementById('player2Name').textContent = data.player2_username || 'Joueur 2';
 
-        renderBoard();
+            console.log('Board after initialization:', gameState.board);
+            renderBoard();
 
-        if (data.status === 'waiting_for_opponent' && gameState.currentPlayerId === data.player1_id) {
-            document.getElementById('startGameBtn').disabled = false;
+            if (data.status === 'waiting_for_opponent' && gameState.currentPlayerId === data.player1_id) {
+                document.getElementById('startGameBtn').disabled = false;
+            }
+        } catch (error) {
+            console.error('Error processing GAME_STATE:', error);
+            console.error('data:', data);
+            // Initialize with default board on error
+            gameState.board = initializeBoard();
+            renderBoard();
         }
     });
 
     wsManager.on('GAME_MOVE', (data) => {
         console.log('Mouvement reçu:', data);
-        applyMove(data.from, data.to);
+        // Only apply move if it's from the opponent
+        if (data.userId !== gameState.currentPlayerId) {
+            applyMove(data.from, data.to);
+            gameState.isPlayerTurn = true; // Now it's our turn
+        }
         renderBoard();
     });
 
@@ -98,39 +156,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-function initializeBoard() {
-    const board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
-
-    // Pions noirs (joueur 1) - haut
-    for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < BOARD_SIZE; col++) {
-            if ((row + col) % 2 === 1) {
-                board[row][col] = 1;
-            }
-        }
-    }
-
-    // Pions blancs (joueur 2) - bas
-    for (let row = 5; row < BOARD_SIZE; row++) {
-        for (let col = 0; col < BOARD_SIZE; col++) {
-            if ((row + col) % 2 === 1) {
-                board[row][col] = 2;
-            }
-        }
-    }
-
-    return board;
-}
-
 function renderBoard() {
     const board = document.getElementById('gameBoard');
+    if (!board) {
+        console.error('gameBoard element not found');
+        return;
+    }
+    
+    // Ensure gameState.board is initialized
+    if (!gameState.board || !Array.isArray(gameState.board) || gameState.board.length === 0) {
+        console.warn('Board not initialized, using default board');
+        gameState.board = initializeBoard();
+    }
+    
     board.innerHTML = '';
 
     for (let row = 0; row < BOARD_SIZE; row++) {
         for (let col = 0; col < BOARD_SIZE; col++) {
             const square = document.createElement('div');
             const isBlack = (row + col) % 2 === 1;
-            const piece = gameState.board[row][col];
+            const piece = gameState.board[row]?.[col] || 0;
 
             square.className = `game-square ${isBlack ? 'black' : 'white'}`;
 
@@ -217,18 +262,42 @@ function calculateValidMoves(row, col) {
 }
 
 function makeMove(from, to) {
-    // Appliquer le mouvement localement
+    // Apply move locally (optimistic update)
     applyMove(from, to);
-
-    // Envoyer le mouvement au serveur
-    wsManager.send('GAME_MOVE', {
-        gameId: gameState.gameId,
-        from: { row: from.row, col: from.col },
-        to: { row: to.row, col: to.col }
-    });
-
-    gameState.isPlayerTurn = false;
     renderBoard();
+
+    // Send move to server via POST request
+    fetch(`/api/games/${gameState.gameId}/move`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+            userId: gameState.currentPlayerId,
+            from: { row: from.row, col: from.col },
+            to: { row: to.row, col: to.col }
+        })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error('Mouvement invalide');
+        }
+        return res.json();
+    })
+    .then(() => {
+        // Move validated by server
+        // Server will broadcast to other players via WebSocket
+        gameState.isPlayerTurn = false;
+        renderBoard();
+    })
+    .catch(err => {
+        console.error('Erreur lors du mouvement:', err);
+        // Revert move if server rejected it
+        gameState.board = JSON.parse(JSON.stringify(gameState.board)); // Reset
+        alert('Mouvement invalide');
+        renderBoard();
+    });
 }
 
 function applyMove(from, to) {
@@ -258,26 +327,39 @@ function sendChatMessage() {
 
     if (!message) return;
 
-    wsManager.send('CHAT_MESSAGE', {
-        gameId: gameState.gameId,
-        message: message
+    // Send chat message via POST request
+    fetch(`/api/games/${gameState.gameId}/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+            userId: gameState.currentPlayerId,
+            message: message
+        })
+    })
+    .then(res => res.json())
+    .then(() => {
+        // Server will broadcast to all players via WebSocket
+        chatInput.value = '';
+    })
+    .catch(err => {
+        console.error('Erreur lors de l\'envoi du message:', err);
+        alert('Erreur lors de l\'envoi du message');
     });
-
-    // Afficher le message localement
-    addChatMessage({
-        userId: gameState.currentPlayerId,
-        message: message,
-        createdAt: new Date().toISOString()
-    }, true);
-
-    chatInput.value = '';
 }
 
 function addChatMessage(data, isOwn = false) {
     const chatMessages = document.getElementById('chatMessages');
     const msgEl = document.createElement('div');
     msgEl.className = `chat-message ${isOwn ? 'own' : ''}`;
-    msgEl.innerHTML = `<strong>Vous</strong>: ${escapeHtml(data.message)}`;
+    
+    // Check if message is from current user
+    const isFromCurrentUser = data.userId === gameState.currentPlayerId;
+    const sender = isFromCurrentUser ? 'Vous' : `Joueur ${data.userId}`;
+    
+    msgEl.innerHTML = `<strong>${sender}</strong>: ${escapeHtml(data.message)}`;
     chatMessages.appendChild(msgEl);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }

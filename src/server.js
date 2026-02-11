@@ -25,8 +25,8 @@ const MAX_MESSAGES_PER_MINUTE = 100; // Rate limiting
 
 // ==================== DATA STRUCTURES ====================
 const userConnections = new Map(); // userId -> { ws, status, lastMessageTime, messageCount }
-const gameRooms = new Map(); // gameId -> Set of userIds
-const lobbyConnections = new Set(); // WebSockets connectés au lobby
+const gameRooms = new Map(); // gameId -> Set of WebSocket connections
+const lobbyUsers = new Map(); // userId -> WebSocket for lobby
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -66,8 +66,9 @@ function validateMessage(data) {
   return true;
 }
 
-function broadcastToLobby(message) {
-  lobbyConnections.forEach(ws => {
+function broadcastToLobby(message, excludeUserId = null) {
+  lobbyUsers.forEach((ws, userId) => {
+    if (excludeUserId && userId === excludeUserId) return;
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message));
     }
@@ -246,20 +247,177 @@ app.post('/api/games', async (req, res) => {
   try {
     const { player1Id, player2Id } = req.body;
 
-    if (!player1Id) {
-      return res.status(400).json({ error: 'player1Id requis' });
+    if (!player1Id || !player2Id) {
+      return res.status(400).json({ error: 'player1Id et player2Id requis' });
     }
 
     const result = await pool.query(
       `INSERT INTO games (player1_id, player2_id, game_state, status) 
        VALUES ($1, $2, $3, $4) 
        RETURNING *`,
-      [player1Id, player2Id || null, JSON.stringify({ board: initializeBoard() }), player2Id ? 'in_progress' : 'waiting_for_opponent']
+      [player1Id, player2Id, { board: initializeBoard() }, 'waiting_for_opponent']
     );
 
-    res.status(201).json(result.rows[0]);
+    const game = result.rows[0];
+
+    // Broadcast invitation to the invited player via general lobby channel
+    const player2Conn = userConnections.get(parseInt(player2Id));
+    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
+      player2Conn.ws.send(JSON.stringify({
+        type: 'GAME_INVITATION',
+        data: { 
+          fromUserId: player1Id, 
+          gameId: game.id
+        }
+      }));
+    }
+
+    res.status(201).json(game);
   } catch (err) {
     console.error('Erreur lors de la création du jeu:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Accept game invitation
+app.post('/api/games/:gameId/accept', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    // Update game status to in_progress and set started_at
+    const result = await pool.query(
+      `UPDATE games 
+       SET status = 'in_progress', started_at = CURRENT_TIMESTAMP 
+       WHERE id = $1 AND player2_id = $2
+       RETURNING *`,
+      [gameId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Partie non trouvée ou non autorisée' });
+    }
+
+    const game = result.rows[0];
+
+    // Broadcast to both players to redirect them to the game
+    const player1Conn = userConnections.get(game.player1_id);
+    const player2Conn = userConnections.get(game.player2_id);
+
+    if (player1Conn && player1Conn.ws.readyState === WebSocket.OPEN) {
+      player1Conn.ws.send(JSON.stringify({
+        type: 'GAME_ACCEPTED',
+        data: { gameId: game.id }
+      }));
+    }
+
+    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
+      player2Conn.ws.send(JSON.stringify({
+        type: 'GAME_ACCEPTED',
+        data: { gameId: game.id }
+      }));
+    }
+
+    res.json(game);
+  } catch (err) {
+    console.error('Erreur lors de l\'acceptation de l\'invitation:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Make a game move
+app.post('/api/games/:gameId/move', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { userId, from, to } = req.body;
+
+    if (!userId || !from || !to) {
+      return res.status(400).json({ error: 'userId, from et to requis' });
+    }
+
+    // Verify user is part of the game
+    const game = await pool.query(
+      'SELECT * FROM games WHERE id = $1',
+      [gameId]
+    );
+
+    if (game.rows.length === 0) {
+      return res.status(404).json({ error: 'Partie non trouvée' });
+    }
+
+    const gameData = game.rows[0];
+    if (gameData.player1_id !== userId && gameData.player2_id !== userId) {
+      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à jouer dans cette partie' });
+    }
+
+    // TODO: Add move validation logic here
+    
+    // Record the move
+    await pool.query(
+      'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',
+      [gameId, userId, from.row, from.col, to.row, to.col]
+    );
+
+    // Update game state in database
+    // TODO: Implement proper game state update logic
+
+    // Broadcast move to all players in the game room via WebSocket
+    broadcastToGameRoom(gameId, {
+      type: 'GAME_MOVE',
+      data: { userId, from, to, gameId }
+    });
+
+    res.json({ success: true, move: { from, to } });
+  } catch (err) {
+    console.error('Erreur lors du mouvement:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Send chat message
+app.post('/api/games/:gameId/chat', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { userId, message } = req.body;
+
+    if (!userId || !message) {
+      return res.status(400).json({ error: 'userId et message requis' });
+    }
+
+    // Verify user is part of the game or watching
+    const game = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
+
+    if (game.rows.length === 0) {
+      return res.status(404).json({ error: 'Partie non trouvée' });
+    }
+
+    // Record chat message
+    const result = await pool.query(
+      'INSERT INTO chat_messages (game_id, user_id, message) VALUES ($1, $2, $3) RETURNING id, created_at',
+      [gameId, userId, message]
+    );
+
+    const chatMsg = result.rows[0];
+
+    // Broadcast to all players in game room via WebSocket
+    broadcastToGameRoom(gameId, {
+      type: 'CHAT_MESSAGE',
+      data: {
+        gameId,
+        userId,
+        message,
+        id: chatMsg.id,
+        createdAt: chatMsg.created_at
+      }
+    });
+
+    res.json({ success: true, messageId: chatMsg.id });
+  } catch (err) {
+    console.error('Erreur lors de l\'envoi du message:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -270,7 +428,7 @@ wss.on('connection', (ws, req) => {
   console.log('📱 Nouveau client WebSocket connecté');
   let userId = null;
   let isInLobby = false;
-  let isInGame = null;
+  let currentGameId = null;
 
   ws.on('message', async (data) => {
     try {
@@ -321,14 +479,16 @@ wss.on('connection', (ws, req) => {
       // Traiter les différents types de messages
       switch (type) {
         case 'AUTH':
-          await handleAuth(ws, msgData);
+          userId = await handleAuth(ws, msgData);
           break;
 
         case 'LOBBY_JOIN':
+          isInLobby = true;
           await handleLobbyJoin(ws, userId);
           break;
 
         case 'LOBBY_LEAVE':
+          isInLobby = false;
           handleLobbyLeave(ws, userId);
           break;
 
@@ -345,11 +505,16 @@ wss.on('connection', (ws, req) => {
           break;
 
         case 'GAME_JOIN':
+          currentGameId = msgData.gameId;
           await handleGameJoin(ws, userId, msgData);
           break;
 
         case 'INVITE_GAME':
           await handleInviteGame(ws, userId, msgData);
+          break;
+
+        case 'ACCEPT_INVITE':
+          await handleAcceptInvite(ws, userId, msgData);
           break;
 
         case 'VIEW_GAME':
@@ -381,15 +546,30 @@ wss.on('connection', (ws, req) => {
   ws.on('close', async () => {
     console.log(`👋 Client déconnecté (userId: ${userId})`);
     if (userId) {
-      await updateUserStatus(userId, 'offline');
-      userConnections.delete(userId);
-      if (isInLobby) {
-        lobbyConnections.delete(ws);
+      // Retirer du lobby si présent
+      if (isInLobby && lobbyUsers.get(userId) === ws) {
+        lobbyUsers.delete(userId);
+        await updateUserStatus(userId, 'offline');
+        broadcastToLobby({
+          type: 'LOBBY_UPDATE',
+          data: { users: await getUsersOnline() }
+        });
       }
-      broadcastToLobby({
-        type: 'LOBBY_UPDATE',
-        data: { users: await getUsersOnline() }
-      });
+
+      // Retirer du game room si présent
+      if (currentGameId && gameRooms.has(currentGameId)) {
+        gameRooms.get(currentGameId).delete(ws);
+        if (gameRooms.get(currentGameId).size === 0) {
+          gameRooms.delete(currentGameId);
+        }
+      }
+
+      // Retirer de userConnections si c'est bien cette WebSocket
+      const conn = userConnections.get(userId);
+      if (conn && conn.ws === ws) {
+        userConnections.delete(userId);
+        await updateUserStatus(userId, 'offline');
+      }
     }
   });
 });
@@ -404,7 +584,7 @@ async function handleAuth(ws, data) {
       type: 'AUTH_ERROR',
       data: { message: 'Token manquant' }
     }));
-    return;
+    return null;
   }
 
   const decoded = verifyToken(token);
@@ -414,29 +594,31 @@ async function handleAuth(ws, data) {
       type: 'AUTH_ERROR',
       data: { message: 'Token invalide' }
     }));
-    return;
+    return null;
   }
 
   const userId = decoded.userId;
   await updateUserStatus(userId, 'online');
 
-  if (!userConnections.has(userId)) {
-    userConnections.set(userId, {
-      ws,
-      status: 'online',
-      lastMessageTime: Date.now(),
-      messageCount: 0
-    });
-  }
+  // Store or update the connection for this user
+  userConnections.set(userId, {
+    ws,
+    status: 'online',
+    lastMessageTime: Date.now(),
+    messageCount: 0
+  });
 
   ws.send(JSON.stringify({
     type: 'AUTH_SUCCESS',
     data: { userId, message: 'Authentification réussie' }
   }));
+
+  return userId;
 }
 
 async function handleLobbyJoin(ws, userId) {
-  lobbyConnections.add(ws);
+  // Add user to lobby (replace if already exists from another connection)
+  lobbyUsers.set(userId, ws);
 
   const users = await getUsersOnline();
 
@@ -445,104 +627,34 @@ async function handleLobbyJoin(ws, userId) {
     data: { users }
   }));
 
+  // Broadcast to all other lobby users that a new user joined
   broadcastToLobby({
     type: 'USER_STATUS',
     data: { userId, status: 'online' }
-  });
+  }, userId);
 }
 
 function handleLobbyLeave(ws, userId) {
-  lobbyConnections.delete(ws);
+  // Only remove if this WebSocket is the current one for this user
+  if (lobbyUsers.get(userId) === ws) {
+    lobbyUsers.delete(userId);
+  }
 }
 
 async function handleGameMove(ws, userId, data) {
-  const { gameId, from, to } = data;
-
-  if (!gameId || !from || !to) {
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Paramètres invalides' }
-    }));
-    return;
-  }
-
-  try {
-    // Vérifier que l'utilisateur fait partie de la partie
-    const game = await pool.query('SELECT player1_id, player2_id FROM games WHERE id = $1', [gameId]);
-
-    if (game.rows.length === 0) {
-      ws.send(JSON.stringify({
-        type: 'ERROR',
-        data: { message: 'Partie non trouvée' }
-      }));
-      return;
-    }
-
-    const gameRow = game.rows[0];
-    if (gameRow.player1_id !== userId && gameRow.player2_id !== userId) {
-      ws.send(JSON.stringify({
-        type: 'ERROR',
-        data: { message: 'Vous n\'êtes pas autorisé à jouer dans cette partie' }
-      }));
-      return;
-    }
-
-    // Enregistrer le mouvement
-    await pool.query(
-      'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',
-      [gameId, userId, from.row, from.col, to.row, to.col]
-    );
-
-    // Broadcaster à tous les clients dans cette partie
-    broadcastToGameRoom(gameId, {
-      type: 'GAME_MOVE',
-      data: { userId, from, to, gameId }
-    });
-  } catch (err) {
-    console.error('Erreur lors du mouvement:', err);
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Erreur lors du mouvement' }
-    }));
-  }
+  // Deprecated: Game moves should now use POST /api/games/:gameId/move
+  ws.send(JSON.stringify({
+    type: 'ERROR',
+    data: { message: 'Utilisez l\'API REST pour les mouvements' }
+  }));
 }
 
 async function handleChatMessage(ws, userId, data) {
-  const { gameId, message } = data;
-
-  if (!gameId || !message) {
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Paramètres invalides' }
-    }));
-    return;
-  }
-
-  try {
-    const result = await pool.query(
-      'INSERT INTO chat_messages (game_id, user_id, message) VALUES ($1, $2, $3) RETURNING id, created_at',
-      [gameId, userId, message]
-    );
-
-    const chatMsg = result.rows[0];
-
-    broadcastToGameRoom(gameId, {
-      type: 'CHAT_MESSAGE',
-      data: {
-        gameId,
-        userId,
-        message,
-        id: chatMsg.id,
-        createdAt: chatMsg.created_at
-      }
-    });
-  } catch (err) {
-    console.error('Erreur lors de l\'envoi du message:', err);
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Erreur lors de l\'envoi du message' }
-    }));
-  }
+  // Deprecated: Chat messages should now use POST /api/games/:gameId/chat
+  ws.send(JSON.stringify({
+    type: 'ERROR',
+    data: { message: 'Utilisez l\'API REST pour les messages de chat' }
+  }));
 }
 
 async function handleGameStart(ws, userId, data) {
@@ -587,13 +699,13 @@ async function handleGameJoin(ws, userId, data) {
   }
 
   try {
-    // Ajouter l'utilisateur à la room du jeu
+    // Add WebSocket to game room
     if (!gameRooms.has(gameId)) {
       gameRooms.set(gameId, new Set());
     }
-    gameRooms.get(gameId).add(userId);
+    gameRooms.get(gameId).add(ws);
 
-    // Récupérer l'état du jeu
+    // Retrieve game state
     const game = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
 
     if (game.rows.length === 0) {
@@ -604,15 +716,33 @@ async function handleGameJoin(ws, userId, data) {
       return;
     }
 
+    // Get player usernames
+    const gameData = game.rows[0];
+    const player1 = await pool.query('SELECT username FROM users WHERE id = $1', [gameData.player1_id]);
+    const player2 = gameData.player2_id ? await pool.query('SELECT username FROM users WHERE id = $1', [gameData.player2_id]) : null;
+
+    // Ensure game_state is properly formatted
+    // PostgreSQL returns JSONB as an object, so we keep it as-is
+    const gameStateToSend = {
+      ...gameData,
+      player1_username: player1.rows[0]?.username,
+      player2_username: player2?.rows[0]?.username
+    };
+
+    console.log('Type of game_state:', typeof gameData.game_state);
+    console.log('game_state content:', gameData.game_state);
+    console.log('Sending GAME_STATE with board:', gameData.game_state?.board ? 'yes' : 'no');
+
     ws.send(JSON.stringify({
       type: 'GAME_STATE',
-      data: game.rows[0]
+      data: gameStateToSend
     }));
 
+    // Broadcast to other players in the game room
     broadcastToGameRoom(gameId, {
       type: 'PLAYER_JOINED',
       data: { userId, gameId }
-    }, userId);
+    }, ws);
   } catch (err) {
     console.error('Erreur lors de la connexion au jeu:', err);
     ws.send(JSON.stringify({
@@ -623,42 +753,19 @@ async function handleGameJoin(ws, userId, data) {
 }
 
 async function handleInviteGame(ws, userId, data) {
-  const { toUserId, gameId } = data;
+  // Deprecated: Game invitations should now use POST /api/games
+  ws.send(JSON.stringify({
+    type: 'ERROR',
+    data: { message: 'Utilisez l\'API REST pour les invitations' }
+  }));
+}
 
-  if (!toUserId || !gameId) {
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Paramètres invalides' }
-    }));
-    return;
-  }
-
-  try {
-    await pool.query(
-      'INSERT INTO game_invitations (from_user_id, to_user_id, game_id) VALUES ($1, $2, $3)',
-      [userId, toUserId, gameId]
-    );
-
-    // Envoyer l'invitation si l'utilisateur est connecté
-    const targetConn = userConnections.get(toUserId);
-    if (targetConn && targetConn.ws.readyState === WebSocket.OPEN) {
-      targetConn.ws.send(JSON.stringify({
-        type: 'GAME_INVITATION',
-        data: { fromUserId: userId, gameId }
-      }));
-    }
-
-    ws.send(JSON.stringify({
-      type: 'INVITE_SENT',
-      data: { toUserId, gameId }
-    }));
-  } catch (err) {
-    console.error('Erreur lors de l\'invitation:', err);
-    ws.send(JSON.stringify({
-      type: 'ERROR',
-      data: { message: 'Erreur lors de l\'invitation' }
-    }));
-  }
+async function handleAcceptInvite(ws, userId, data) {
+  // Deprecated: Accept invitations should now use POST /api/games/:gameId/accept
+  ws.send(JSON.stringify({
+    type: 'ERROR',
+    data: { message: 'Utilisez l\'API REST pour accepter les invitations' }
+  }));
 }
 
 async function handleViewGame(ws, userId, data) {
@@ -699,15 +806,14 @@ async function handleViewGame(ws, userId, data) {
 
 // ==================== BROADCAST FUNCTIONS ====================
 
-function broadcastToGameRoom(gameId, message, excludeUserId = null) {
+function broadcastToGameRoom(gameId, message, excludeWs = null) {
   const room = gameRooms.get(gameId);
   if (!room) return;
 
-  room.forEach(uid => {
-    if (excludeUserId && uid === excludeUserId) return;
-    const conn = userConnections.get(uid);
-    if (conn && conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-      conn.ws.send(JSON.stringify(message));
+  room.forEach(ws => {
+    if (excludeWs && ws === excludeWs) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message));
     }
   });
 }
