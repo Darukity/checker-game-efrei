@@ -33,11 +33,13 @@
                 <div class="game-header">
                     <div class="player-info">
                         <span id="player1Name">Joueur 1</span>
+                        <span id="player1Color">Couleur Bleu</span>
                         <span id="player1Score">Score: 0</span>
                     </div>
                     <div class="game-title">Dame</div>
                     <div class="player-info">
                         <span id="player2Name">Joueur 2</span>
+                        <span id="player2Color">Couleur Orange</span>
                         <span id="player2Score">Score: 0</span>
                     </div>
                 </div>
@@ -46,8 +48,11 @@
                     <div id="gameBoard" class="game-board"></div>
                 </div>
 
+                <div class="turn-indicator" id="turnIndicator">
+                    <span id="turnStatus">En attente des joueurs...</span>
+                </div>
+
                 <div class="game-controls">
-                    <button id="startGameBtn" class="btn btn-primary" disabled>Démarrer la partie</button>
                     <button id="abandonBtn" class="btn btn-secondary">Abandonner</button>
                 </div>
 
@@ -77,6 +82,40 @@
             </section>
         </div>
     </main>
+
+    <span id="player2Color">Couleur Orange</span>
+<!-- Modal d'abandon -->
+    <div id="abandonModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirmer l'abandon</h3>
+                <button class="modal-close" onclick="closeAbandonModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="abandonText">Êtes-vous sûr de vouloir abandonner? Votre adversaire gagnera la partie.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAbandonModal()">Annuler</button>
+                <button id="confirmAbandonBtn" class="btn btn-primary">Abandonner</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de notification -->
+    <div id="notificationModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="notificationTitle">Notification</h3>
+                <button class="modal-close" onclick="closeNotificationModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="notificationText">Votre message ici</p>
+            </div>
+            <div class="modal-footer">
+                <button id="notificationBtn" class="btn btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/websocket.js?v=2"></script>
     <script src="js/navbar.js?v=2"></script>

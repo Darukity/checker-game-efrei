@@ -89,10 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             console.log('Board after initialization:', gameState.board);
             renderBoard();
-
-            if (data.status === 'waiting_for_opponent' && gameState.currentPlayerId === data.player1_id) {
-                document.getElementById('startGameBtn').disabled = false;
-            }
+            updateGameStatus();
         } catch (error) {
             console.error('Error processing GAME_STATE:', error);
             console.error('data:', data);
@@ -110,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             gameState.isPlayerTurn = true; // Now it's our turn
         }
         renderBoard();
+        updateGameStatus();
     });
 
     wsManager.on('GAME_START', (data) => {
@@ -117,13 +115,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameState.isPlayerTurn = gameState.playerColor === 1;
         renderBoard();
         updateGameStatus();
+        console.log('🎮 La partie a commencé !');
     });
 
     wsManager.on('PLAYER_JOINED', (data) => {
         if (data.userId !== gameState.currentPlayerId) {
             console.log('Adversaire connecté, partie peut commencer');
-            if (gameState.currentPlayerId === gameState.playerColor) {
-                document.getElementById('startGameBtn').disabled = false;
+            // Automatically start the game when both players are connected
+            if (gameState.currentPlayerId === data.player1_id || gameState.playerColor === 1) {
+                // Player 1 starts the game automatically
+                setTimeout(() => {
+                    wsManager.send('GAME_START', { gameId: gameState.gameId });
+                }, 500);
             }
         }
     });
@@ -137,7 +140,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Event listeners pour le jeu
-    document.getElementById('startGameBtn').addEventListener('click', startGame);
     document.getElementById('abandonBtn').addEventListener('click', abandonGame);
     document.getElementById('sendChatBtn').addEventListener('click', sendChatMessage);
 
@@ -290,6 +292,7 @@ function makeMove(from, to) {
         // Server will broadcast to other players via WebSocket
         gameState.isPlayerTurn = false;
         renderBoard();
+        updateGameStatus();
     })
     .catch(err => {
         console.error('Erreur lors du mouvement:', err);
@@ -297,6 +300,7 @@ function makeMove(from, to) {
         gameState.board = JSON.parse(JSON.stringify(gameState.board)); // Reset
         alert('Mouvement invalide');
         renderBoard();
+        updateGameStatus();
     });
 }
 
@@ -311,14 +315,45 @@ function applyMove(from, to) {
     }
 }
 
-function startGame() {
-    wsManager.send('GAME_START', { gameId: gameState.gameId });
-}
-
 function abandonGame() {
-    if (confirm('Êtes-vous sûr de vouloir abandonner?')) {
-        window.location.href = 'myGames.html';
-    }
+    // Afficher le modal de confirmation
+    document.getElementById('abandonModal').classList.remove('hidden');
+    
+    // Gérer le clic sur le bouton de confirmation
+    const confirmBtn = document.getElementById('confirmAbandonBtn');
+    const handler = () => {
+        confirmBtn.removeEventListener('click', handler);
+        
+        fetch(`/api/games/${gameState.gameId}/abandon`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                userId: gameState.currentPlayerId
+            })
+        })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Erreur lors de l\'abandon');
+            }
+            return res.json();
+        })
+        .then(data => {
+            closeAbandonModal();
+            showNotification('Abandon confirmé', 'Vous avez abandonné la partie. Votre adversaire a gagné!', () => {
+                window.location.href = 'myGames.html';
+            });
+        })
+        .catch(err => {
+            console.error('Erreur lors de l\'abandon:', err);
+            closeAbandonModal();
+            showNotification('Erreur', 'Erreur lors de l\'abandon de la partie');
+        });
+    };
+    
+    confirmBtn.addEventListener('click', handler);
 }
 
 function sendChatMessage() {
@@ -365,12 +400,56 @@ function addChatMessage(data, isOwn = false) {
 }
 
 function updateGameStatus() {
-    const status = gameState.isPlayerTurn ? '🎮 À votre tour' : '⏳ Attente du mouvement adversaire';
-    // Vous pouvez ajouter un élément d'état de jeu si souhaité
+    const turnIndicator = document.getElementById('turnIndicator');
+    const turnStatus = document.getElementById('turnStatus');
+    
+    if (!turnIndicator || !turnStatus) return;
+
+    if (gameState.gameStatus === 'waiting') {
+        turnStatus.textContent = '⏳ En attente des joueurs...';
+        turnIndicator.className = 'turn-indicator waiting';
+    } else if (gameState.gameStatus === 'in_progress') {
+        if (gameState.isPlayerTurn) {
+            turnStatus.textContent = '🎮 C\'est votre tour de jouer !';
+            turnIndicator.className = 'turn-indicator your-turn';
+        } else {
+            turnStatus.textContent = '⏳ Au tour de l\'adversaire...';
+            turnIndicator.className = 'turn-indicator opponent-turn';
+        }
+    } else if (gameState.gameStatus === 'finished') {
+        turnStatus.textContent = '🏁 Partie terminée';
+        turnIndicator.className = 'turn-indicator finished';
+    }
 }
 
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ==================== MODAL FUNCTIONS ====================
+
+function closeAbandonModal() {
+    document.getElementById('abandonModal').classList.add('hidden');
+}
+
+function closeNotificationModal() {
+    document.getElementById('notificationModal').classList.add('hidden');
+}
+
+function showNotification(title, message, callback = null) {
+    document.getElementById('notificationTitle').textContent = title;
+    document.getElementById('notificationText').textContent = message;
+    document.getElementById('notificationModal').classList.remove('hidden');
+    
+    const notificationBtn = document.getElementById('notificationBtn');
+    const handler = () => {
+        notificationBtn.removeEventListener('click', handler);
+        closeNotificationModal();
+        if (callback) {
+            callback();
+        }
+    };
+    notificationBtn.addEventListener('click', handler);
 }
