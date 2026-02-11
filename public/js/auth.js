@@ -27,7 +27,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     try {
         spinner.classList.remove('hidden');
 
-        const response = await fetch('/api/login', {
+        const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -80,7 +80,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     try {
         spinner.classList.remove('hidden');
 
-        const response = await fetch('/api/register', {
+        const response = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email, password })

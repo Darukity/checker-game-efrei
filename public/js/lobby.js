@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Cela évite les boucles WebSocket
         clearTimeout(lobbyUpdateTimeout);
         lobbyUpdateTimeout = setTimeout(() => {
-            fetch('/api/users/online')
+            fetch('/api/user/online')
                 .then(res => res.json())
                 .then(users => renderUsers(users))
                 .catch(err => console.error('Erreur lors de la récupération des utilisateurs:', err));
