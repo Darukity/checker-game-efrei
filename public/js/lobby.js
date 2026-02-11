@@ -1,6 +1,7 @@
 // ==================== LOBBY.JS ====================
 
 let currentLobbyInvite = null;
+let lobbyUpdateTimeout = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Rejoindre le lobby
@@ -17,8 +18,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     wsManager.on('USER_STATUS', (data) => {
         console.log(`Statut utilisateur ${data.userId}: ${data.status}`);
-        // Recharger la liste des utilisateurs
-        wsManager.send('LOBBY_JOIN', {});
+        // Debounce la récupération de la liste complète via API REST
+        // Cela évite les boucles WebSocket
+        clearTimeout(lobbyUpdateTimeout);
+        lobbyUpdateTimeout = setTimeout(() => {
+            fetch('/api/users/online')
+                .then(res => res.json())
+                .then(users => renderUsers(users))
+                .catch(err => console.error('Erreur lors de la récupération des utilisateurs:', err));
+        }, 300);
     });
 
     wsManager.on('GAME_INVITATION', (data) => {

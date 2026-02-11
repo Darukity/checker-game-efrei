@@ -219,6 +219,19 @@ app.get('/api/user/:userId', async (req, res) => {
   }
 });
 
+// Get all online users
+app.get('/api/users/online', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, username, online_status FROM users WHERE online_status = 'online'
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur lors de la récupération des utilisateurs:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Get user's games
 app.get('/api/games/:userId', async (req, res) => {
   try {
