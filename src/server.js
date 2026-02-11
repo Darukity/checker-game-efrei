@@ -342,6 +342,74 @@ app.post('/api/games/:gameId/accept', async (req, res) => {
   }
 });
 
+// Abandon a game
+app.post('/api/games/:gameId/abandon', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    // Fetch the game
+    const gameResult = await pool.query(
+      'SELECT * FROM games WHERE id = $1',
+      [gameId]
+    );
+
+    if (gameResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Partie non trouvée' });
+    }
+
+    const game = gameResult.rows[0];
+
+    // Verify user is part of the game
+    if (game.player1_id !== userId && game.player2_id !== userId) {
+      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à abandonner cette partie' });
+    }
+
+    // Determine the winner (the opponent)
+    const winnerId = game.player1_id === userId ? game.player2_id : game.player1_id;
+
+    // Update game status to finished and set ended_at
+    const result = await pool.query(
+      `UPDATE games 
+       SET status = 'finished', ended_at = CURRENT_TIMESTAMP, winner_id = $1
+       WHERE id = $2
+       RETURNING *`,
+      [winnerId, gameId]
+    );
+
+    // Notify both players via WebSocket
+    const player1Conn = userConnections.get(game.player1_id);
+    const player2Conn = userConnections.get(game.player2_id);
+
+    const notificationMessage = {
+      type: 'GAME_ABANDONED',
+      data: {
+        gameId: game.id,
+        abandonedByUserId: userId,
+        winnerId: winnerId,
+        message: `Le joueur a abandonné. Vous avez gagné!`
+      }
+    };
+
+    if (player1Conn && player1Conn.ws.readyState === WebSocket.OPEN) {
+      player1Conn.ws.send(JSON.stringify(notificationMessage));
+    }
+
+    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
+      player2Conn.ws.send(JSON.stringify(notificationMessage));
+    }
+
+    res.json({ success: true, game: result.rows[0] });
+  } catch (err) {
+    console.error('Erreur lors de l\'abandon:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Make a game move
 app.post('/api/games/:gameId/move', async (req, res) => {
   try {
