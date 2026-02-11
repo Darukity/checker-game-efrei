@@ -131,6 +131,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    wsManager.on('GAME_ABANDONED', (data) => {
+        console.log('Partie abandonnée:', data);
+        showNotification(
+            '🎉 Victoire!',
+            'Votre adversaire a abandonné! Vous avez gagné!',
+            () => {
+                window.location.href = 'myGames.html';
+            }
+        );
+    });
+
     wsManager.on('CHAT_MESSAGE', (data) => {
         addChatMessage(data);
     });
