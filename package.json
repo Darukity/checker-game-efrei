@@ -1,0 +1,36 @@
+{
+  "name": "dame-projet",
+  "version": "1.0.0",
+  "description": "Jeu de Dame en temps réel avec WebSocket",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:init": "node src/db/init.js",
+    "db:reset": "node src/db/reset.js"
+  },
+  "keywords": [
+    "dame",
+    "websocket",
+    "real-time",
+    "game"
+  ],
+  "author": "Loris",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.13.0",
+    "pg": "^8.10.0",
+    "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

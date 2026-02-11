@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liste d'adversaires - Dame Projet</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/navbar.css">
+    <link rel="stylesheet" href="css/lobby.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-title">
+                <h1>🎮 Dame Projet</h1>
+            </div>
+            <div class="navbar-center">
+                <span id="userPseudo" class="user-pseudo">Utilisateur</span>
+                <span id="connStatus" class="connection-status online">● En ligne</span>
+            </div>
+            <div class="navbar-buttons">
+                <a href="lobby.html" class="nav-btn active">Liste d'adversaires</a>
+                <a href="myGames.html" class="nav-btn">Mes Parties</a>
+                <button id="logoutBtn" class="nav-btn logout">Déconnexion</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="lobby-section">
+            <h2>Adversaires disponibles</h2>
+            
+            <div id="statusInfo" class="status-info">
+                <p>🔄 Connexion au serveur en cours...</p>
+            </div>
+
+            <div id="usersList" class="users-list">
+                <div class="loading">Chargement des utilisateurs...</div>
+            </div>
+
+            <div id="errorAlert" class="error-alert hidden"></div>
+        </section>
+    </main>
+
+    <!-- Modal d'invitation -->
+    <div id="inviteModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirmer l'invitation</h3>
+                <button class="modal-close" onclick="closeInviteModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="inviteText">Êtes-vous sûr de vouloir inviter cet utilisateur à jouer?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeInviteModal()">Annuler</button>
+                <button id="confirmInviteBtn" class="btn btn-primary">Inviter</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/websocket.js"></script>
+    <script src="js/navbar.js"></script>
+    <script src="js/lobby.js"></script>
+</body>
+</html>

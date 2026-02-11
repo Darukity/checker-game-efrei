@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu de Dame - Dame Projet</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/navbar.css">
+    <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-title">
+                <h1>🎮 Dame Projet</h1>
+            </div>
+            <div class="navbar-center">
+                <span id="userPseudo" class="user-pseudo">Utilisateur</span>
+                <span id="connStatus" class="connection-status online">● En ligne</span>
+            </div>
+            <div class="navbar-buttons">
+                <a href="lobby.html" class="nav-btn">Liste d'adversaires</a>
+                <a href="myGames.html" class="nav-btn">Mes Parties</a>
+                <button id="logoutBtn" class="nav-btn logout">Déconnexion</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="game-container">
+        <div class="game-wrapper">
+            <!-- Panneau du jeu -->
+            <section class="game-section">
+                <div class="game-header">
+                    <div class="player-info">
+                        <span id="player1Name">Joueur 1</span>
+                        <span id="player1Score">Score: 0</span>
+                    </div>
+                    <div class="game-title">Dame</div>
+                    <div class="player-info">
+                        <span id="player2Name">Joueur 2</span>
+                        <span id="player2Score">Score: 0</span>
+                    </div>
+                </div>
+
+                <div class="board-container">
+                    <div id="gameBoard" class="game-board"></div>
+                </div>
+
+                <div class="game-controls">
+                    <button id="startGameBtn" class="btn btn-primary" disabled>Démarrer la partie</button>
+                    <button id="abandonBtn" class="btn btn-secondary">Abandonner</button>
+                </div>
+
+                <!-- Viewers -->
+                <div class="viewers-section">
+                    <span class="viewers-icon">👁️</span>
+                    <span id="viewerCount" class="viewer-count">0</span>
+                    <span>spectateur(s)</span>
+                </div>
+            </section>
+
+            <!-- Panneau du chat -->
+            <section class="chat-section">
+                <div class="chat-header">
+                    <h3>💬 Chat</h3>
+                </div>
+                <div id="chatMessages" class="chat-messages"></div>
+                <div class="chat-input-group">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        placeholder="Votre message..."
+                        maxlength="200"
+                    >
+                    <button id="sendChatBtn" class="btn-send">Envoyer</button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="js/websocket.js"></script>
+    <script src="js/navbar.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>

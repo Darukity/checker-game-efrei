@@ -1,0 +1,225 @@
+.games-section {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: var(--shadow-lg);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--light);
+}
+
+.section-header h2 {
+    color: var(--dark);
+    margin: 0;
+    font-size: 28px;
+}
+
+.games-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.game-card {
+    background: white;
+    border: 2px solid var(--light);
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.3s;
+    overflow: hidden;
+}
+
+.game-card:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-5px);
+}
+
+.game-card.in_progress {
+    border-left: 4px solid var(--success);
+}
+
+.game-card.waiting_for_opponent {
+    border-left: 4px solid var(--warning);
+}
+
+.game-card.completed {
+    border-left: 4px solid var(--gray);
+    opacity: 0.8;
+}
+
+.game-card-header {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--light);
+}
+
+.game-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.game-status.in_progress {
+    background: rgba(46, 204, 113, 0.2);
+    color: var(--success);
+}
+
+.game-status.waiting_for_opponent {
+    background: rgba(243, 156, 18, 0.2);
+    color: var(--warning);
+}
+
+.game-status.completed {
+    background: rgba(149, 165, 166, 0.2);
+    color: var(--gray);
+}
+
+.game-players {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.player {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.player-name {
+    font-weight: 600;
+    color: var(--dark);
+    font-size: 14px;
+    text-align: center;
+}
+
+.player-color {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-top: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.player-color.player1 {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.player-color.player2 {
+    background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+}
+
+.vs-text {
+    color: var(--gray);
+    font-weight: 600;
+    padding: 0 10px;
+}
+
+.game-info {
+    font-size: 12px;
+    color: var(--gray);
+    margin-bottom: 15px;
+}
+
+.game-info span {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.game-date {
+    color: var(--gray);
+    font-size: 11px;
+    margin-top: 10px;
+}
+
+.game-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+}
+
+.game-actions button {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-continue {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-continue:hover {
+    background: var(--primary-dark);
+}
+
+.btn-view {
+    background: var(--secondary);
+    color: white;
+}
+
+.btn-view:hover {
+    background: #6c63e2;
+}
+
+.btn-delete {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-delete:hover {
+    background: #c0392b;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-state p {
+    color: var(--gray);
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.empty-state .btn {
+    display: inline-block;
+}
+
+@media (max-width: 768px) {
+    .games-list {
+        grid-template-columns: 1fr;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .section-header button {
+        width: 100%;
+    }
+
+    .games-section {
+        padding: 20px;
+    }
+}
