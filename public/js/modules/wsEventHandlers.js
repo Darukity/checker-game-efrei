@@ -57,11 +57,14 @@ function setupWebSocketHandlers(wsManager) {
         if (data.userId !== gameState.currentPlayerId) {
             console.log('Adversaire connecté, partie peut commencer');
             // Automatically start the game when both players are connected
-            if (gameState.currentPlayerId === data.player1_id || gameState.playerColor === 1) {
-                // Player 1 starts the game automatically
+            // Only player 1 (the one with playerColor === 1) should send GAME_START
+            if (gameState.playerColor === 1) {
+                console.log('Je suis le joueur 1, je démarre la partie automatiquement');
                 setTimeout(() => {
                     wsManager.send('GAME_START', { gameId: gameState.gameId });
                 }, 500);
+            } else {
+                console.log('Je suis le joueur 2, j\'attends que le joueur 1 démarre');
             }
         }
     });

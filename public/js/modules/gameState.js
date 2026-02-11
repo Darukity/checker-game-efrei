@@ -70,6 +70,17 @@ function updateGameStateFromServer(data) {
         gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
         gameState.gameStatus = data.status;
 
+        // Initialize turn state based on game status
+        // Player 1 (black pieces) always goes first when game is in progress
+        if (data.status === 'in_progress') {
+            gameState.isPlayerTurn = gameState.playerColor === 1;
+            console.log(`🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`);
+        } else {
+            // For waiting or other statuses, no one has a turn yet
+            gameState.isPlayerTurn = false;
+            console.log(`⏳ Game status: ${data.status} - waiting for game to start`);
+        }
+
         return {
             player1Name: data.player1_username || 'Joueur 1',
             player2Name: data.player2_username || 'Joueur 2'

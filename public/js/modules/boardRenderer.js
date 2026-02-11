@@ -66,8 +66,8 @@ function updateGameStatus() {
     
     if (!turnIndicator || !turnStatus) return;
 
-    if (gameState.gameStatus === 'waiting') {
-        turnStatus.textContent = '⏳ En attente des joueurs...';
+    if (gameState.gameStatus === 'waiting' || gameState.gameStatus === 'waiting_for_opponent') {
+        turnStatus.textContent = '⏳ En attente de l\'adversaire...';
         turnIndicator.className = 'turn-indicator waiting';
     } else if (gameState.gameStatus === 'in_progress') {
         if (gameState.isPlayerTurn) {
