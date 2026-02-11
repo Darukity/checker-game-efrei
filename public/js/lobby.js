@@ -2,6 +2,7 @@
 
 let currentLobbyInvite = null;
 let lobbyUpdateTimeout = null;
+let currentIncomingInvite = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Rejoindre le lobby
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     wsManager.on('GAME_INVITATION', (data) => {
+        console.log('🎯 GAME_INVITATION received in lobby:', data);
         handleIncomingInvitation(data);
     });
 
@@ -107,8 +109,9 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
 
         const game = await response.json();
 
+        // Save username before closing modal (which sets currentLobbyInvite to null)
+        const invitedUsername = currentLobbyInvite.username;
         closeInviteModal();
-        alert('Invitation envoyée à ' + currentLobbyInvite.username);
 
         // The server will broadcast the invitation to the other player
         // Wait for them to accept before redirecting
@@ -125,57 +128,52 @@ function handleIncomingInvitation(data) {
     fetch(`/api/user/${fromUserId}`)
         .then(res => res.json())
         .then(user => {
-            const accepted = confirm(`${user.username} vous invite à jouer! Accepter?`);
-
-            if (accepted) {
-                // Send POST request to accept the invitation
-                fetch(`/api/games/${gameId}/accept`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({
-                        userId: localStorage.getItem('userId')
-                    })
-                })
-                .then(res => res.json())
-                .then(() => {
-                    // Server will broadcast GAME_ACCEPTED to both players
-                    // Redirect handled by GAME_ACCEPTED listener
-                })
-                .catch(err => {
-                    console.error('Erreur lors de l\'acceptation:', err);
-                    alert('Erreur lors de l\'acceptation de l\'invitation');
-                });
-            }
+            currentIncomingInvite = { fromUserId, gameId, username: user.username };
+            document.getElementById('incomingInviteText').textContent = `${user.username} vous invite à jouer! Acceptez-vous?`;
+            document.getElementById('incomingInviteModal').classList.remove('hidden');
         })
         .catch(err => {
             console.error('Erreur lors de la récupération de l\'utilisateur:', err);
-            const accepted = confirm('Vous avez reçu une invitation à jouer! Accepter?');
-            
-            if (accepted) {
-                fetch(`/api/games/${gameId}/accept`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({
-                        userId: localStorage.getItem('userId')
-                    })
-                })
-                .then(res => res.json())
-                .then(() => {
-                    // Server will broadcast GAME_ACCEPTED to both players
-                })
-                .catch(err => {
-                    console.error('Erreur lors de l\'acceptation:', err);
-                    alert('Erreur lors de l\'acceptation de l\'invitation');
-                });
-            }
+            currentIncomingInvite = { fromUserId, gameId, username: 'Un adversaire' };
+            document.getElementById('incomingInviteText').textContent = 'Vous avez reçu une invitation à jouer! Acceptez-vous?';
+            document.getElementById('incomingInviteModal').classList.remove('hidden');
         });
 }
+
+function closeIncomingInviteModal() {
+    document.getElementById('incomingInviteModal').classList.add('hidden');
+    currentIncomingInvite = null;
+}
+
+document.getElementById('confirmIncomingInviteBtn').addEventListener('click', async () => {
+    if (!currentIncomingInvite) return;
+
+    try {
+        // Send POST request to accept the invitation
+        const response = await fetch(`/api/games/${currentIncomingInvite.gameId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                userId: localStorage.getItem('userId')
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Erreur lors de l\'acceptation');
+        }
+
+        closeIncomingInviteModal();
+        // Server will broadcast GAME_ACCEPTED to both players
+        // Redirect handled by GAME_ACCEPTED listener
+    } catch (err) {
+        console.error('Erreur lors de l\'acceptation:', err);
+        closeIncomingInviteModal();
+        alert('Erreur lors de l\'acceptation de l\'invitation');
+    }
+});
 
 function updateStatusInfo(status, isError = false) {
     const statusInfo = document.getElementById('statusInfo');

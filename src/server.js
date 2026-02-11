@@ -275,14 +275,27 @@ app.post('/api/games', async (req, res) => {
 
     // Broadcast invitation to the invited player via general lobby channel
     const player2Conn = userConnections.get(parseInt(player2Id));
+    console.log(`🎮 Sending invitation to player ${player2Id}, connection found:`, !!player2Conn);
+    console.log(`📋 Active connections:`, Array.from(userConnections.keys()));
+    
+    if (player2Conn) {
+      console.log(`🔍 WebSocket readyState for player ${player2Id}:`, player2Conn.ws.readyState);
+      console.log(`🔍 WebSocket.OPEN constant:`, WebSocket.OPEN);
+    }
+    
     if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
-      player2Conn.ws.send(JSON.stringify({
+      const inviteMessage = JSON.stringify({
         type: 'GAME_INVITATION',
         data: { 
           fromUserId: player1Id, 
           gameId: game.id
         }
-      }));
+      });
+      console.log(`📤 Sending message to player ${player2Id}:`, inviteMessage);
+      player2Conn.ws.send(inviteMessage);
+      console.log(`✅ Invitation sent to player ${player2Id}`);
+    } else {
+      console.log(`❌ Could not send invitation to player ${player2Id} - connection not found or not open`);
     }
 
     res.status(201).json(game);
@@ -545,7 +558,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        userId = decoded.userId;
+        userId = parseInt(decoded.userId);
       }
 
       // Rate limiting
@@ -678,7 +691,7 @@ async function handleAuth(ws, data) {
     return null;
   }
 
-  const userId = decoded.userId;
+  const userId = parseInt(decoded.userId);
   await updateUserStatus(userId, 'online');
 
   // Store or update the connection for this user

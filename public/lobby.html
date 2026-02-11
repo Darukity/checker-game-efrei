@@ -59,6 +59,23 @@
         </div>
     </div>
 
+    <!-- Modal d'invitation reçue -->
+    <div id="incomingInviteModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Invitation à jouer</h3>
+                <button class="modal-close" onclick="closeIncomingInviteModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="incomingInviteText">Vous êtes invité à jouer</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeIncomingInviteModal()">Refuser</button>
+                <button id="confirmIncomingInviteBtn" class="btn btn-primary">Accepter</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/websocket.js?v=2"></script>
     <script src="js/navbar.js?v=2"></script>
     <script src="js/lobby.js?v=2"></script>

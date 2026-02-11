@@ -143,6 +143,7 @@ class WebSocketManager {
 
     handleMessage(message) {
         const { type, data } = message;
+        console.log(`📨 WebSocket received message:`, type, data);
 
         switch (type) {
             case 'AUTH_SUCCESS':
