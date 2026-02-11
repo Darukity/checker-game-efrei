@@ -34,11 +34,23 @@ function setupWebSocketHandlers(wsManager) {
     // Receive opponent's move
     wsManager.on('GAME_MOVE', (data) => {
         console.log('Mouvement reçu:', data);
-        // Only apply move if it's from the opponent
-        if (data.userId !== gameState.currentPlayerId) {
+        
+        // Update board from server (authoritative state)
+        if (data.board) {
+            console.log('Updating board from server');
+            gameState.board = data.board;
+        } else {
+            // Fallback: apply move locally if board not provided
+            console.log('Applying move locally (no board in message)');
             applyMove(data.from, data.to);
-            gameState.isPlayerTurn = true; // Now it's our turn
         }
+        
+        // Update turn from server's authoritative state
+        if (data.current_turn_player_id !== undefined && data.current_turn_player_id !== null) {
+            gameState.isPlayerTurn = data.current_turn_player_id === gameState.currentPlayerId;
+            console.log('🎮 Turn updated from GAME_MOVE: isPlayerTurn =', gameState.isPlayerTurn);
+        }
+        
         renderBoard(handleSquareClick);
         updateGameStatus();
     });

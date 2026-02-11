@@ -2,7 +2,7 @@
 // Main entry point - imports all game modules
 
 import { gameState } from './modules/gameState.js';
-import { renderBoard } from './modules/boardRenderer.js';
+import { renderBoard, updateGameStatus } from './modules/boardRenderer.js';
 import { handleSquareClick } from './modules/moveLogic.js';
 import { sendChatMessage, abandonGame, closeAbandonModal, closeNotificationModal } from './modules/uiHandlers.js';
 import { setupWebSocketHandlers } from './modules/wsEventHandlers.js';
@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('cancelAbandonBtn').addEventListener('click', closeAbandonModal);
     document.getElementById('closeNotificationBtn')?.addEventListener('click', closeNotificationModal);
 
-    // Initial render
-    renderBoard(handleSquareClick);
+    // Initial render - just show loading state
+    // Don't render the board yet, wait for GAME_STATE from WebSocket
+    updateGameStatus(); // Will show "Chargement de la partie..."
 });

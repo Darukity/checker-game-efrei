@@ -235,10 +235,12 @@ router.post('/games/:gameId/accept', async (req, res) => {
       return res.status(400).json({ error: 'userId requis' });
     }
 
-    // Update game status to in_progress and set started_at
+    // Update game status to in_progress, set started_at, and set current turn to player1
     const result = await pool.query(
       `UPDATE games 
-       SET status = 'in_progress', started_at = CURRENT_TIMESTAMP 
+       SET status = 'in_progress', 
+           started_at = CURRENT_TIMESTAMP,
+           current_turn_player_id = player1_id
        WHERE id = $1 AND player2_id = $2
        RETURNING *`,
       [gameId, userId]
@@ -368,24 +370,88 @@ router.post('/games/:gameId/move', async (req, res) => {
       return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à jouer dans cette partie' });
     }
 
-    // TODO: Add move validation logic here
+    // Validate move: check if it's the player's turn
+    if (gameData.current_turn_player_id !== userId) {
+      return res.status(403).json({ error: 'Ce n\'est pas votre tour' });
+    }
+
+    // Get current game state
+    let currentGameState = gameData.game_state;
+    if (!currentGameState || !currentGameState.board) {
+      return res.status(400).json({ error: 'État de jeu invalide' });
+    }
+
+    // Validate move: check if the source square has a piece
+    const piece = currentGameState.board[from.row]?.[from.col];
+    if (!piece) {
+      return res.status(400).json({ error: 'Aucun pion à déplacer' });
+    }
+
+    // Validate move: check if the destination is empty
+    if (currentGameState.board[to.row]?.[to.col] !== 0) {
+      return res.status(400).json({ error: 'Case de destination occupée' });
+    }
+
+    // Validate move: check if it's the player's piece
+    const playerColor = gameData.player1_id === userId ? 1 : 2;
+    if (piece !== playerColor) {
+      return res.status(400).json({ error: 'Ce n\'est pas votre pion' });
+    }
+
+    // TODO: Add more advanced move validation (diagonal moves, captures, etc.)
     
-    // Record the move
+    // Apply the move to the board
+    const updatedBoard = JSON.parse(JSON.stringify(currentGameState.board)); // Deep copy
+    updatedBoard[to.row][to.col] = piece;
+    updatedBoard[from.row][from.col] = 0;
+
+    // Update game state in database
+    const updatedGameState = {
+      ...currentGameState,
+      board: updatedBoard,
+      lastMove: { from, to, userId, timestamp: new Date().toISOString() }
+    };
+
+    console.log('💾 Updating game state in database:');
+    console.log('  - Game ID:', gameId);
+    console.log('  - Move: from', from, 'to', to);
+    console.log('  - Board updated:', !!updatedBoard);
+    console.log('  - Board dimensions:', updatedBoard.length, 'x', updatedBoard[0]?.length);
+
+    // Determine next player
+    const nextPlayerId = gameData.player1_id === userId ? gameData.player2_id : gameData.player1_id;
+    console.log('  - Switching turn from player', userId, 'to player', nextPlayerId);
+
+    // pg library handles JSONB serialization automatically - don't use JSON.stringify
+    // Also update current_turn_player_id to the opponent
+    await pool.query(
+      'UPDATE games SET game_state = $1, current_turn_player_id = $2 WHERE id = $3',
+      [updatedGameState, nextPlayerId, gameId]
+    );
+    
+    console.log('✅ Game state saved to database');
+    
+    // Record the move in history
     await pool.query(
       'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',
       [gameId, userId, from.row, from.col, to.row, to.col]
     );
 
-    // Update game state in database
-    // TODO: Implement proper game state update logic
-
     // Broadcast move to all players in the game room via WebSocket
+    // Include the updated board and current turn to ensure synchronization
     broadcastToGameRoom(gameRooms, gameId, {
       type: 'GAME_MOVE',
-      data: { userId, from, to, gameId }
+      data: { 
+        userId, 
+        from, 
+        to, 
+        gameId, 
+        board: updatedBoard,
+        current_turn_player_id: nextPlayerId
+      }
     });
 
-    res.json({ success: true, move: { from, to } });
+    res.json({ success: true, move: { from, to }, board: updatedBoard });
   } catch (err) {
     console.error('Erreur lors du mouvement:', err);
     res.status(500).json({ error: 'Erreur serveur' });

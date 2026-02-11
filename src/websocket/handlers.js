@@ -167,9 +167,15 @@ async function handleGameJoin(ws, userId, data) {
       player2_username: player2?.rows[0]?.username
     };
 
-    console.log('Type of game_state:', typeof gameData.game_state);
-    console.log('game_state content:', gameData.game_state);
-    console.log('Sending GAME_STATE with board:', gameData.game_state?.board ? 'yes' : 'no');
+    console.log('📊 GAME_JOIN Handler:');
+    console.log('  - Game ID:', gameId);
+    console.log('  - Game status:', gameData.status);
+    console.log('  - Type of game_state:', typeof gameData.game_state);
+    console.log('  - game_state.board exists:', !!gameData.game_state?.board);
+    console.log('  - Board length:', gameData.game_state?.board?.length);
+    if (gameData.game_state?.lastMove) {
+      console.log('  - Last move found:', gameData.game_state.lastMove);
+    }
 
     ws.send(JSON.stringify({
       type: 'GAME_STATE',

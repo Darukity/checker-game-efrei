@@ -74,6 +74,11 @@
     box-shadow: var(--shadow-lg);
 }
 
+.game-board.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 .game-square {
     aspect-ratio: 1;
     display: flex;

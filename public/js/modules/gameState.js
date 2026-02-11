@@ -35,7 +35,8 @@ const gameState = {
     isPlayerTurn: false,
     playerColor: null,
     opponentId: null,
-    gameStatus: 'waiting'
+    gameStatus: 'waiting',
+    isLoading: true // Prevent interactions until game state is loaded from server
 };
 
 function resetGameState() {
@@ -44,25 +45,31 @@ function resetGameState() {
     gameState.validMoves = [];
     gameState.isPlayerTurn = false;
     gameState.gameStatus = 'waiting';
+    gameState.isLoading = true; // Reset loading state when resetting game
 }
 
 function updateGameStateFromServer(data) {
     try {
+        console.log('🔄 Updating game state from server:');
+        console.log('  - Game ID:', data.id);
+        console.log('  - Status:', data.status);
+        
         // PostgreSQL JSONB is returned as an object by the pg library
         let gameStateData = data.game_state;
         
         // If for some reason it's a string, parse it
         if (typeof gameStateData === 'string') {
-            console.log('Parsing game_state string:', gameStateData);
+            console.log('⚠️ Parsing game_state string:', gameStateData);
             gameStateData = JSON.parse(gameStateData);
         }
         
         // Extract board or initialize new one
         if (gameStateData && gameStateData.board && Array.isArray(gameStateData.board)) {
-            console.log('Using board from game_state');
+            console.log('✅ Using board from game_state (size:', gameStateData.board.length, ')');
             gameState.board = gameStateData.board;
         } else {
-            console.log('Initializing new board');
+            console.warn('⚠️ No valid board in game_state, initializing new board');
+            console.log('  - gameStateData:', gameStateData);
             gameState.board = initializeBoard();
         }
         
@@ -70,15 +77,47 @@ function updateGameStateFromServer(data) {
         gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
         gameState.gameStatus = data.status;
 
+        console.log('👥 Player Info:');
+        console.log('  - Current Player ID:', gameState.currentPlayerId);
+        console.log('  - Opponent ID:', gameState.opponentId);
+        console.log('  - Player Color:', gameState.playerColor);
+        console.log('  - Player 1 ID:', data.player1_id);
+        console.log('  - Player 2 ID:', data.player2_id);
+        console.log('  - Current Turn Player ID (from DB):', data.current_turn_player_id);
+
         // Initialize turn state based on game status
-        // Player 1 (black pieces) always goes first when game is in progress
         if (data.status === 'in_progress') {
-            gameState.isPlayerTurn = gameState.playerColor === 1;
-            console.log(`🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`);
+            // Use server's authoritative current_turn_player_id
+            if (data.current_turn_player_id !== undefined && data.current_turn_player_id !== null) {
+                gameState.isPlayerTurn = data.current_turn_player_id === gameState.currentPlayerId;
+                console.log('🎮 Turn determined from database:');
+                console.log('  - current_turn_player_id === currentPlayerId?', data.current_turn_player_id === gameState.currentPlayerId);
+                console.log('  - Result: isPlayerTurn =', gameState.isPlayerTurn);
+            } else {
+                // Fallback: use lastMove if current_turn_player_id is not set
+                if (gameStateData && gameStateData.lastMove) {
+                    console.log('📝 Last Move Info (fallback):');
+                    console.log('  - lastMove.userId:', gameStateData.lastMove.userId);
+                    console.log('  - lastMove.from:', gameStateData.lastMove.from);
+                    console.log('  - lastMove.to:', gameStateData.lastMove.to);
+                    console.log('  - lastMove.timestamp:', gameStateData.lastMove.timestamp);
+                    
+                    // If the last move was made by the opponent, it's our turn
+                    gameState.isPlayerTurn = gameStateData.lastMove.userId === gameState.opponentId;
+                    console.log('🎮 Turn Logic (fallback):');
+                    console.log('  - lastMove.userId === opponentId?', gameStateData.lastMove.userId === gameState.opponentId);
+                    console.log('  - Result: isPlayerTurn =', gameState.isPlayerTurn);
+                } else {
+                    // No moves yet - Player 1 (black pieces) goes first
+                    gameState.isPlayerTurn = gameState.playerColor === 1;
+                    console.log('🎮 First turn - Player 1 starts, isPlayerTurn:', gameState.isPlayerTurn);
+                }
+            }
+            console.log('🎮 Final Turn State: Player', gameState.currentPlayerId, '(color', gameState.playerColor + '), isPlayerTurn:', gameState.isPlayerTurn);
         } else {
             // For waiting or other statuses, no one has a turn yet
             gameState.isPlayerTurn = false;
-            console.log(`⏳ Game status: ${data.status} - waiting for game to start`);
+            console.log('⏳ Game status:', data.status, '- waiting for game to start');
         }
 
         return {
@@ -86,9 +125,13 @@ function updateGameStateFromServer(data) {
             player2Name: data.player2_username || 'Joueur 2'
         };
     } catch (error) {
-        console.error('Error processing game state:', error);
+        console.error('❌ Error processing game state:', error);
         gameState.board = initializeBoard();
         throw error;
+    } finally {
+        // Mark loading as complete regardless of success or failure
+        gameState.isLoading = false;
+        console.log('✅ Game state loading complete');
     }
 }
 

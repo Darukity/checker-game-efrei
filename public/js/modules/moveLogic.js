@@ -26,6 +26,12 @@ function calculateValidMoves(row, col) {
 }
 
 function handleSquareClick(row, col) {
+    // Prevent any interaction while loading or if game is not in progress
+    if (gameState.isLoading) {
+        console.log('⏳ Game is still loading, ignoring click');
+        return;
+    }
+    
     if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
         return;
     }
@@ -53,6 +59,9 @@ function handleSquareClick(row, col) {
 }
 
 function makeMove(from, to) {
+    // Save board state before optimistic update (for potential rollback)
+    const previousBoard = JSON.parse(JSON.stringify(gameState.board));
+    
     // Apply move locally (optimistic update)
     applyMove(from, to);
     renderBoard(handleSquareClick);
@@ -72,12 +81,18 @@ function makeMove(from, to) {
     })
     .then(res => {
         if (!res.ok) {
-            throw new Error('Mouvement invalide');
+            return res.json().then(err => {
+                throw new Error(err.error || 'Mouvement invalide');
+            });
         }
         return res.json();
     })
-    .then(() => {
+    .then((data) => {
         // Move validated by server
+        // Update board from server response to ensure consistency
+        if (data.board) {
+            gameState.board = data.board;
+        }
         // Server will broadcast to other players via WebSocket
         gameState.isPlayerTurn = false;
         renderBoard(handleSquareClick);
@@ -85,9 +100,9 @@ function makeMove(from, to) {
     })
     .catch(err => {
         console.error('Erreur lors du mouvement:', err);
-        // Revert move if server rejected it
-        gameState.board = JSON.parse(JSON.stringify(gameState.board)); // Reset
-        alert('Mouvement invalide');
+        // Revert to previous board state if server rejected the move
+        gameState.board = previousBoard;
+        alert(err.message || 'Mouvement invalide');
         renderBoard(handleSquareClick);
         updateGameStatus();
     });

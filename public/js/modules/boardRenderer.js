@@ -15,6 +15,13 @@ function renderBoard(handleSquareClick) {
         return;
     }
     
+    // Add or remove loading class based on state
+    if (gameState.isLoading) {
+        board.classList.add('loading');
+    } else {
+        board.classList.remove('loading');
+    }
+    
     board.innerHTML = '';
 
     for (let row = 0; row < BOARD_SIZE; row++) {
@@ -65,6 +72,13 @@ function updateGameStatus() {
     const turnStatus = document.getElementById('turnStatus');
     
     if (!turnIndicator || !turnStatus) return;
+
+    // Show loading state
+    if (gameState.isLoading) {
+        turnStatus.textContent = '⏳ Chargement de la partie...';
+        turnIndicator.className = 'turn-indicator waiting';
+        return;
+    }
 
     if (gameState.gameStatus === 'waiting' || gameState.gameStatus === 'waiting_for_opponent') {
         turnStatus.textContent = '⏳ En attente de l\'adversaire...';
