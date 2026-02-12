@@ -149,6 +149,15 @@ async function handleGameJoin(ws, userId, data) {
 
     console.log(`🎮 User ${userId} joined game room ${gameId}. Room size: ${gameRooms.get(gameId).size}`);
 
+    // Update user status to 'in_game' so they don't appear in lobby
+    await updateUserStatus(userId, 'in_game');
+
+    // Broadcast status change to all users in general channel
+    broadcastToLobby(lobbyUsers, {
+      type: 'USER_STATUS',
+      data: { userId, status: 'in_game' }
+    });
+
     // Retrieve game state
     const game = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
 
@@ -249,7 +258,7 @@ async function handleViewGame(ws, userId, data) {
   }
 }
 
-function handleGameLeave(ws, userId, data) {
+async function handleGameLeave(ws, userId, data) {
   const { gameId } = data;
 
   if (!gameId) {
@@ -277,6 +286,15 @@ function handleGameLeave(ws, userId, data) {
       data: { userId, gameId }
     });
   }
+
+  // Update user status back to 'online' - now available in lobby again
+  await updateUserStatus(userId, 'online');
+
+  // Broadcast status change to all users in general channel
+  broadcastToLobby(lobbyUsers, {
+    type: 'USER_STATUS',
+    data: { userId, status: 'online' }
+  });
 
   ws.send(JSON.stringify({
     type: 'GAME_LEAVE_SUCCESS',

@@ -55,15 +55,23 @@ function renderUsers(users) {
         return;
     }
 
-    // Filtrer les utilisateurs (sauf soi-même)
-    const otherUsers = users.filter(u => u.id.toString() !== currentUserId);
+    // Filtrer les utilisateurs (sauf soi-même et ceux en partie)
+    const otherUsers = users.filter(u => 
+        u.id.toString() !== currentUserId && 
+        u.online_status !== 'in_game'
+    );
+
+    if (otherUsers.length === 0) {
+        usersList.innerHTML = '<div class="loading">Aucun adversaire disponible</div>';
+        return;
+    }
 
     usersList.innerHTML = otherUsers.map(user => `
         <div class="user-card ${user.online_status === 'online' ? '' : 'offline'}">
             <div class="user-avatar">${user.username.charAt(0).toUpperCase()}</div>
             <div class="user-name">${escapeHtml(user.username)}</div>
             <span class="user-status ${user.online_status}">
-                ${user.online_status === 'online' ? '🟢 En ligne' : '⚫ Hors ligne'}
+                ${user.online_status === 'online' ? '🟢 Disponible' : '⚫ Hors ligne'}
             </span>
             <div class="user-actions">
                 <button class="btn-invite" onclick="inviteUser(${user.id}, '${escapeHtml(user.username)}')">
