@@ -18,10 +18,17 @@ class WebSocketManager {
         this.messageQueue = [];
         this.isConnected = false;
         this.isAuthenticated = false;
+        this.isInGeneralChannel = false; // Track if user is in general channel
+        this.currentGameId = null; // Track current game room
         this.connectingPromise = null;
         this.heartbeatInterval = null;
 
         WebSocketManager.instance = this;
+
+        // Auto-connect on instantiation if user is logged in
+        if (localStorage.getItem('token')) {
+            this.connect();
+        }
     }
 
     connect() {
@@ -149,12 +156,19 @@ class WebSocketManager {
             case 'AUTH_SUCCESS':
                 console.log('✅ Authentification réussie');
                 this.isAuthenticated = true;
+                this.isInGeneralChannel = true; // Server automatically adds to general channel
                 this.emit('AUTH_SUCCESS', data);
                 break;
 
             case 'AUTH_ERROR':
                 console.error('❌ Erreur authentification:', data);
                 this.emit('AUTH_ERROR', data);
+                break;
+
+            case 'GAME_LEAVE_SUCCESS':
+                console.log('✅ Left game room:', data.gameId);
+                this.currentGameId = null;
+                this.emit('GAME_LEAVE_SUCCESS', data);
                 break;
 
             default:
@@ -250,7 +264,45 @@ class WebSocketManager {
     }
 
     isReady() {
-        return this.isConnected && this.isAuthenticated;
+        return this.isConnected && this.isAuthenticated && this.isInGeneralChannel;
+    }
+
+    /**
+     * Join a game room (game namespace) while staying connected to general channel
+     * @param {string|number} gameId - The ID of the game to join
+     */
+    joinGameRoom(gameId) {
+        if (!this.isReady()) {
+            console.warn('⚠️ Cannot join game room: not connected to general channel');
+            return;
+        }
+
+        this.currentGameId = gameId;
+        this.send('GAME_JOIN', { gameId });
+        console.log(`🎮 Joining game room ${gameId}`);
+    }
+
+    /**
+     * Leave current game room while staying connected to general channel
+     */
+    leaveGameRoom() {
+        if (!this.currentGameId) {
+            console.warn('⚠️ Not in any game room');
+            return;
+        }
+
+        const gameId = this.currentGameId;
+        this.send('GAME_LEAVE', { gameId });
+        console.log(`👋 Leaving game room ${gameId}`);
+        // currentGameId will be set to null when GAME_LEAVE_SUCCESS is received
+    }
+
+    /**
+     * Check if user is currently in a game room
+     * @returns {boolean}
+     */
+    isInGame() {
+        return this.currentGameId !== null;
     }
 }
 

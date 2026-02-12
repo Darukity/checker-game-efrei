@@ -6,10 +6,12 @@ import { handleSquareClick } from './moveLogic.js';
 import { addChatMessage, showNotification, updateViewerCount } from './uiHandlers.js';
 
 function setupWebSocketHandlers(wsManager) {
-    // Auth success - join the game
+    // Auth success - join the game room (while staying in general channel)
     wsManager.on('AUTH_SUCCESS', () => {
         console.log(`🎮 Rejoindre la partie ${gameState.gameId}`);
-        wsManager.send('GAME_JOIN', { gameId: gameState.gameId });
+        wsManager.joinGameRoom(gameState.gameId);
+        // Also join as viewer for spectator support
+        wsManager.send('VIEW_GAME', { gameId: gameState.gameId });
     });
 
     // Receive game state from server
@@ -72,6 +74,8 @@ function setupWebSocketHandlers(wsManager) {
     // Game abandoned by opponent
     wsManager.on('GAME_ABANDONED', (data) => {
         console.log('Partie abandonnée:', data);
+        // Leave game room
+        wsManager.leaveGameRoom();
         showNotification(
             '🎉 Victoire!',
             'Votre adversaire a abandonné! Vous avez gagné!',
@@ -91,9 +95,26 @@ function setupWebSocketHandlers(wsManager) {
         updateViewerCount(data.count);
     });
 
-    // Setup view game (spectator mode)
-    wsManager.on('AUTH_SUCCESS', () => {
-        wsManager.send('VIEW_GAME', { gameId: gameState.gameId });
+    // Handle player disconnect
+    wsManager.on('PLAYER_DISCONNECTED', (data) => {
+        console.log('Joueur déconnecté:', data);
+        showNotification(
+            '⚠️ Joueur déconnecté',
+            'Un joueur s\'est déconnecté de la partie.',
+            null
+        );
+    });
+
+    // Handle player left game
+    wsManager.on('PLAYER_LEFT', (data) => {
+        console.log('Joueur a quitté:', data);
+        if (data.userId !== gameState.currentPlayerId) {
+            showNotification(
+                '👋 Joueur parti',
+                'Votre adversaire a quitté la partie.',
+                null
+            );
+        }
     });
 }
 

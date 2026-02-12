@@ -79,6 +79,8 @@ function abandonGame() {
         })
         .then(data => {
             closeAbandonModal();
+            // Leave game room before redirecting
+            wsManager.leaveGameRoom();
             showNotification('Abandon confirmé', 'Vous avez abandonné la partie. Votre adversaire a gagné!', () => {
                 window.location.href = 'myGames.html';
             });

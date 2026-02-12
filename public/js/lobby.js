@@ -5,10 +5,10 @@ let lobbyUpdateTimeout = null;
 let currentIncomingInvite = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Rejoindre le lobby
+    // Listen for general channel updates (automatic after AUTH)
     wsManager.on('AUTH_SUCCESS', () => {
-        console.log('👥 Rejoindre le lobby');
-        wsManager.send('LOBBY_JOIN', {});
+        console.log('✅ Connected to general channel automatically');
+        // No need to send LOBBY_JOIN - server does it automatically
     });
 
     // Écouter les mises à jour du lobby
@@ -129,19 +129,19 @@ function handleIncomingInvitation(data) {
         .then(res => res.json())
         .then(user => {
             currentIncomingInvite = { fromUserId, gameId, username: user.username };
-            document.getElementById('incomingInviteText').textContent = `${user.username} vous invite à jouer! Acceptez-vous?`;
-            document.getElementById('incomingInviteModal').classList.remove('hidden');
+            document.getElementById('globalInviteText').textContent = `${user.username} vous invite à jouer! Acceptez-vous?`;
+            document.getElementById('globalInviteModal').classList.remove('hidden');
         })
         .catch(err => {
             console.error('Erreur lors de la récupération de l\'utilisateur:', err);
             currentIncomingInvite = { fromUserId, gameId, username: 'Un adversaire' };
-            document.getElementById('incomingInviteText').textContent = 'Vous avez reçu une invitation à jouer! Acceptez-vous?';
-            document.getElementById('incomingInviteModal').classList.remove('hidden');
+            document.getElementById('globalInviteText').textContent = 'Vous avez reçu une invitation à jouer! Acceptez-vous?';
+            document.getElementById('globalInviteModal').classList.remove('hidden');
         });
 }
 
 function closeIncomingInviteModal() {
-    document.getElementById('incomingInviteModal').classList.add('hidden');
+    document.getElementById('globalInviteModal').classList.add('hidden');
     currentIncomingInvite = null;
 }
 

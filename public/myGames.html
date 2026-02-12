@@ -59,6 +59,23 @@
         </div>
     </div>
 
+    <!-- Global Invitation Modal (received from general channel) -->
+    <div id="globalInviteModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Invitation à jouer</h3>
+                <button class="modal-close" onclick="closeGlobalInviteModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="globalInviteText">Vous êtes invité à jouer</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeGlobalInviteModal()">Refuser</button>
+                <button class="btn btn-primary" onclick="acceptGlobalInvitation()">Accepter</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/websocket.js"></script>
     <script src="js/navbar.js"></script>
     <script src="js/myGames.js"></script>

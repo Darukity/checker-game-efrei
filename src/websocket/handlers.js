@@ -55,21 +55,24 @@ async function handleAuth(ws, data) {
 }
 
 async function handleLobbyJoin(ws, userId) {
-  // Add user to lobby (replace if already exists from another connection)
+  // Add user to general channel (replace if already exists from another connection)
   lobbyUsers.set(userId, ws);
 
   const users = await getUsersOnline();
 
+  // Send full user list to the joining user
   ws.send(JSON.stringify({
     type: 'LOBBY_UPDATE',
     data: { users }
   }));
 
-  // Broadcast to all other lobby users that a new user joined
+  // Broadcast to all other users in general channel that a user came online
   broadcastToLobby(lobbyUsers, {
     type: 'USER_STATUS',
     data: { userId, status: 'online' }
   }, userId);
+
+  console.log(`✅ User ${userId} joined general channel. Total users: ${lobbyUsers.size}`);
 }
 
 function handleLobbyLeave(ws, userId) {
@@ -137,11 +140,14 @@ async function handleGameJoin(ws, userId, data) {
   }
 
   try {
-    // Add WebSocket to game room
+    // Add WebSocket to game room (game namespace)
+    // Note: User stays connected to general channel (lobbyUsers) as well
     if (!gameRooms.has(gameId)) {
       gameRooms.set(gameId, new Set());
     }
     gameRooms.get(gameId).add(ws);
+
+    console.log(`🎮 User ${userId} joined game room ${gameId}. Room size: ${gameRooms.get(gameId).size}`);
 
     // Retrieve game state
     const game = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
@@ -171,12 +177,13 @@ async function handleGameJoin(ws, userId, data) {
     console.log('game_state content:', gameData.game_state);
     console.log('Sending GAME_STATE with board:', gameData.game_state?.board ? 'yes' : 'no');
 
+    // Send game state to the joining user
     ws.send(JSON.stringify({
       type: 'GAME_STATE',
       data: gameStateToSend
     }));
 
-    // Broadcast to other players in the game room
+    // Broadcast to other players in the game room (not general channel)
     broadcastToGameRoom(gameRooms, gameId, {
       type: 'PLAYER_JOINED',
       data: { userId, gameId }
@@ -242,6 +249,41 @@ async function handleViewGame(ws, userId, data) {
   }
 }
 
+function handleGameLeave(ws, userId, data) {
+  const { gameId } = data;
+
+  if (!gameId) {
+    ws.send(JSON.stringify({
+      type: 'ERROR',
+      data: { message: 'gameId requis' }
+    }));
+    return;
+  }
+
+  // Remove user from game room but keep them in general channel
+  if (gameRooms.has(gameId)) {
+    gameRooms.get(gameId).delete(ws);
+    console.log(`👋 User ${userId} left game room ${gameId}. Room size: ${gameRooms.get(gameId).size}`);
+    
+    // Clean up empty game rooms
+    if (gameRooms.get(gameId).size === 0) {
+      gameRooms.delete(gameId);
+      console.log(`🗑️ Game room ${gameId} deleted (empty)`);
+    }
+
+    // Notify other players in game room
+    broadcastToGameRoom(gameRooms, gameId, {
+      type: 'PLAYER_LEFT',
+      data: { userId, gameId }
+    });
+  }
+
+  ws.send(JSON.stringify({
+    type: 'GAME_LEAVE_SUCCESS',
+    data: { gameId }
+  }));
+}
+
 module.exports = {
   setSharedData,
   handleAuth,
@@ -251,6 +293,7 @@ module.exports = {
   handleChatMessage,
   handleGameStart,
   handleGameJoin,
+  handleGameLeave,
   handleInviteGame,
   handleAcceptInvite,
   handleViewGame

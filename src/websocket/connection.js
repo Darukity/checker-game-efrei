@@ -1,7 +1,7 @@
 const { verifyToken } = require('../utils/auth');
 const { validateMessage, isRateLimited } = require('../utils/validation');
 const { updateUserStatus, getUsersOnline } = require('../services/userService');
-const { broadcastToLobby } = require('../utils/game');
+const { broadcastToLobby, broadcastToGameRoom } = require('../utils/game');
 const {
   setSharedData,
   handleAuth,
@@ -11,6 +11,7 @@ const {
   handleChatMessage,
   handleGameStart,
   handleGameJoin,
+  handleGameLeave,
   handleInviteGame,
   handleAcceptInvite,
   handleViewGame
@@ -23,7 +24,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
   wss.on('connection', (ws, req) => {
     console.log('📱 Nouveau client WebSocket connecté');
     let userId = null;
-    let isInLobby = false;
     let currentGameId = null;
 
     ws.on('message', async (data) => {
@@ -76,16 +76,20 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
         switch (type) {
           case 'AUTH':
             userId = await handleAuth(ws, msgData);
+            // Automatically join general channel after authentication
+            if (userId) {
+              await handleLobbyJoin(ws, userId);
+            }
             break;
 
           case 'LOBBY_JOIN':
-            isInLobby = true;
+            // Keep for backward compatibility, but now it's automatic after AUTH
             await handleLobbyJoin(ws, userId);
             break;
 
           case 'LOBBY_LEAVE':
-            isInLobby = false;
-            handleLobbyLeave(ws, userId);
+            // Deprecated - users stay in general channel until disconnect
+            // Keep for backward compatibility but do nothing
             break;
 
           case 'GAME_MOVE':
@@ -103,6 +107,13 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
           case 'GAME_JOIN':
             currentGameId = msgData.gameId;
             await handleGameJoin(ws, userId, msgData);
+            break;
+
+          case 'GAME_LEAVE':
+            if (currentGameId) {
+              handleGameLeave(ws, userId, { gameId: currentGameId });
+              currentGameId = null;
+            }
             break;
 
           case 'INVITE_GAME':
@@ -142,13 +153,13 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
     ws.on('close', async () => {
       console.log(`👋 Client déconnecté (userId: ${userId})`);
       if (userId) {
-        // Retirer du lobby si présent
-        if (isInLobby && lobbyUsers.get(userId) === ws) {
+        // Always remove from general channel (lobby)
+        if (lobbyUsers.get(userId) === ws) {
           lobbyUsers.delete(userId);
-          await updateUserStatus(userId, 'offline');
+          // Broadcast user offline status to all users in general channel
           broadcastToLobby(lobbyUsers, {
-            type: 'LOBBY_UPDATE',
-            data: { users: await getUsersOnline() }
+            type: 'USER_STATUS',
+            data: { userId, status: 'offline' }
           });
         }
 
@@ -158,6 +169,11 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
           if (gameRooms.get(currentGameId).size === 0) {
             gameRooms.delete(currentGameId);
           }
+          // Notify other players in game room
+          broadcastToGameRoom(gameRooms, currentGameId, {
+            type: 'PLAYER_DISCONNECTED',
+            data: { userId, gameId: currentGameId }
+          });
         }
 
         // Retirer de userConnections si c'est bien cette WebSocket

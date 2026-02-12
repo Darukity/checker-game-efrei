@@ -1,5 +1,8 @@
 // ==================== NAVBAR.JS ====================
 
+// Global state for invitations
+let currentGlobalInvite = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Vérifier l'authentification
     const token = localStorage.getItem('token');
@@ -23,12 +26,105 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Erreur connexion WebSocket:', err);
     }
 
+    // Setup global invitation handler (works on all pages except in-game)
+    setupGlobalInvitationHandler();
+
     // Bouton déconnexion
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
     }
 });
+
+function setupGlobalInvitationHandler() {
+    // Listen for incoming invitations on the general channel
+    wsManager.on('GAME_INVITATION', (data) => {
+        console.log('🎯 GAME_INVITATION received globally:', data);
+        
+        // Only show invitation if user is NOT currently in a game
+        if (wsManager.isInGame()) {
+            console.log('⚠️ User is in game, ignoring invitation');
+            return;
+        }
+
+        handleGlobalInvitation(data);
+    });
+
+    // Listen for game accepted (redirect both players)
+    wsManager.on('GAME_ACCEPTED', (data) => {
+        console.log('✅ Game accepted, redirecting to game:', data.gameId);
+        window.location.href = `game.html?gameId=${data.gameId}`;
+    });
+}
+
+async function handleGlobalInvitation(data) {
+    const { fromUserId, gameId } = data;
+
+    // Get the inviter's username
+    try {
+        const response = await fetch(`/api/user/${fromUserId}`);
+        const inviter = await response.json();
+
+        currentGlobalInvite = { fromUserId, gameId, inviterName: inviter.username };
+
+        // Show modal
+        const modal = document.getElementById('globalInviteModal');
+        const inviteText = document.getElementById('globalInviteText');
+        
+        if (modal && inviteText) {
+            inviteText.textContent = `${inviter.username} vous invite à jouer!`;
+            modal.classList.remove('hidden');
+        } else {
+            // Fallback to confirm dialog if modal not available
+            const accept = confirm(`${inviter.username} vous invite à jouer! Accepter?`);
+            if (accept) {
+                acceptGlobalInvitation();
+            }
+        }
+    } catch (err) {
+        console.error('Erreur lors de la récupération des infos de l\'inviteur:', err);
+    }
+}
+
+async function acceptGlobalInvitation() {
+    if (!currentGlobalInvite) return;
+
+    try {
+        const response = await fetch(`/api/games/${currentGlobalInvite.gameId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                userId: parseInt(localStorage.getItem('userId'))
+            })
+        });
+
+        if (response.ok) {
+            // Server will send GAME_ACCEPTED event to both players
+            // which will redirect them to the game page
+            closeGlobalInviteModal();
+        } else {
+            alert('Erreur lors de l\'acceptation de l\'invitation');
+        }
+    } catch (err) {
+        console.error('Erreur:', err);
+        alert('Erreur lors de l\'acceptation de l\'invitation');
+    }
+}
+
+function closeGlobalInviteModal() {
+    const modal = document.getElementById('globalInviteModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    currentGlobalInvite = null;
+}
+
+// Make functions globally available
+window.acceptGlobalInvitation = acceptGlobalInvitation;
+window.closeGlobalInviteModal = closeGlobalInviteModal;
 
 function logout() {
     localStorage.removeItem('token');
