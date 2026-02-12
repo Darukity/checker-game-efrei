@@ -42,15 +42,28 @@ function createSquare(row, col, handleSquareClick) {
         square.classList.add('selected');
     }
 
-    // Vérifier si c'est un mouvement valide
-    if (gameState.validMoves.some(m => m.row === row && m.col === col)) {
-        square.classList.add('valid-move');
-    }
-
     // Afficher les pions
     if (piece) {
-        const pieceLetter = piece === 1 ? '●' : '○';
-        const pieceClass = piece === 1 ? 'player1' : 'player2';
+        let pieceLetter, pieceClass;
+        
+        if (piece === 1) {
+            // Pion joueur 1 (bleu)
+            pieceLetter = '●';
+            pieceClass = 'player1 pion';
+        } else if (piece === 3) {
+            // Dame joueur 1 (bleu)
+            pieceLetter = '★';
+            pieceClass = 'player1 dame';
+        } else if (piece === 2) {
+            // Pion joueur 2 (orange)
+            pieceLetter = '○';
+            pieceClass = 'player2 pion';
+        } else if (piece === 4) {
+            // Dame joueur 2 (orange)
+            pieceLetter = '✦';
+            pieceClass = 'player2 dame';
+        }
+        
         square.innerHTML = `<div class="piece ${pieceClass}">${pieceLetter}</div>`;
     }
 

@@ -1,100 +1,73 @@
 // ==================== MOVE LOGIC MODULE ====================
 
-import { BOARD_SIZE, gameState, applyMove, clearSelection } from './gameState.js';
+import { BOARD_SIZE, gameState, clearSelection } from './gameState.js';
 import { renderBoard, updateGameStatus } from './boardRenderer.js';
 
-function calculateValidMoves(row, col) {
-    const moves = [];
-    const piece = gameState.board[row][col];
-
-    if (!piece) return moves;
-
-    // Mouvements simples
-    const directions = piece === 1 ?
-        [[row + 1, col - 1], [row + 1, col + 1]] : // pion va vers le bas
-        [[row - 1, col - 1], [row - 1, col + 1]]; // pion va vers le haut
-
-    directions.forEach(([newRow, newCol]) => {
-        if (newRow >= 0 && newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE) {
-            if (gameState.board[newRow][newCol] === 0) {
-                moves.push({ row: newRow, col: newCol });
-            }
-        }
-    });
-
-    return moves;
-}
-
 function handleSquareClick(row, col) {
-    if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
-        return;
-    }
+  if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
+    return;
+  }
 
-    // Si une case est déjà sélectionnée
-    if (gameState.selectedSquare) {
-        // Vérifier si c'est un mouvement valide
-        if (gameState.validMoves.some(m => m.row === row && m.col === col)) {
-            makeMove(gameState.selectedSquare, { row, col });
-            clearSelection();
-        } else if (gameState.board[row][col] === gameState.playerColor) {
-            // Sélectionner un autre pion
-            gameState.selectedSquare = { row, col };
-            gameState.validMoves = calculateValidMoves(row, col);
-        }
-    } else {
-        // Sélectionner un pion
-        if (gameState.board[row][col] === gameState.playerColor) {
-            gameState.selectedSquare = { row, col };
-            gameState.validMoves = calculateValidMoves(row, col);
-        }
+  // Si une case est déjà sélectionnée
+  if (gameState.selectedSquare) {
+    // Vérifier si c'est un mouvement valide (destinataire vide)
+    const targetPiece = gameState.board[row][col];
+    
+    if (targetPiece === 0) {
+      // Case vide - envoyer le mouvement
+      makeMove(gameState.selectedSquare, { row, col });
+      clearSelection();
+    } else if (targetPiece === gameState.playerColor || targetPiece === gameState.playerColor + 2) {
+      // Sélectionner un autre pion de notre couleur
+      gameState.selectedSquare = { row, col };
     }
+  } else {
+    // Sélectionner un pion
+    const piece = gameState.board[row][col];
+    if (piece === gameState.playerColor || piece === gameState.playerColor + 2) {
+      gameState.selectedSquare = { row, col };
+    }
+  }
 
-    renderBoard(handleSquareClick);
+  renderBoard(handleSquareClick);
 }
 
 function makeMove(from, to) {
-    // Apply move locally (optimistic update)
-    applyMove(from, to);
+  // Send move to server via POST request (no local optimistic update)
+  fetch(`/api/games/${gameState.gameId}/move`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    },
+    body: JSON.stringify({
+      userId: gameState.currentPlayerId,
+      from: { row: from.row, col: from.col },
+      to: { row: to.row, col: to.col }
+    })
+  })
+  .then(async res => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = body && body.error ? body.error : 'Mouvement invalide';
+      throw new Error(msg);
+    }
+    return body;
+  })
+  .then(() => {
+    // Move validated by server, wait for GAME_STATE via WebSocket
+    console.log('Mouvement envoye au serveur, en attente de confirmation');
+  })
+  .catch(err => {
+    console.error('Erreur lors du mouvement:', err);
+    // Don't show an alert to the user; log instead and re-render
+    console.log('Mouvement invalide:', err.message);
     renderBoard(handleSquareClick);
-
-    // Send move to server via POST request
-    fetch(`/api/games/${gameState.gameId}/move`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-            userId: gameState.currentPlayerId,
-            from: { row: from.row, col: from.col },
-            to: { row: to.row, col: to.col }
-        })
-    })
-    .then(res => {
-        if (!res.ok) {
-            throw new Error('Mouvement invalide');
-        }
-        return res.json();
-    })
-    .then(() => {
-        // Move validated by server
-        // Server will broadcast to other players via WebSocket
-        gameState.isPlayerTurn = false;
-        renderBoard(handleSquareClick);
-        updateGameStatus();
-    })
-    .catch(err => {
-        console.error('Erreur lors du mouvement:', err);
-        // Revert move if server rejected it
-        gameState.board = JSON.parse(JSON.stringify(gameState.board)); // Reset
-        alert('Mouvement invalide');
-        renderBoard(handleSquareClick);
-        updateGameStatus();
-    });
+    updateGameStatus();
+  });
 }
 
 export {
-    calculateValidMoves,
-    handleSquareClick,
-    makeMove
+  handleSquareClick,
+  makeMove
 };

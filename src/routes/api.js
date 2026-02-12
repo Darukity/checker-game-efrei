@@ -5,6 +5,8 @@ const pool = require('../db/pool');
 const { verifyToken, generateToken } = require('../utils/auth');
 const { getUsersOnline } = require('../services/userService');
 const { initializeBoard, broadcastToGameRoom } = require('../utils/game');
+const { validateAndApplyMove } = require('../services/checkersEngine');
+
 
 const router = express.Router();
 
@@ -188,11 +190,11 @@ router.post('/games', async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO games (player1_id, player2_id, game_state, status) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO games (player1_id, player2_id, game_state, current_turn, status) 
+       VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
-      [player1Id, player2Id, { board: initializeBoard() }, 'waiting_for_opponent']
-    );
+      [player1Id, player2Id, { board: initializeBoard(), currentTurn: null }, null, 'waiting_for_opponent']
+    ); //HERE
 
     const game = result.rows[0];
 
@@ -238,10 +240,13 @@ router.post('/games/:gameId/accept', async (req, res) => {
       return res.status(400).json({ error: 'userId requis' });
     }
 
-    // Update game status to in_progress and set started_at
+    // Update game status to in_progress, set current_turn to 1 (player1 starts), and update game_state JSONB
     const result = await pool.query(
       `UPDATE games 
-       SET status = 'in_progress', started_at = CURRENT_TIMESTAMP 
+       SET status = 'in_progress', 
+           current_turn = 1, 
+           game_state = jsonb_set(game_state, '{currentTurn}', '1'),
+           started_at = CURRENT_TIMESTAMP 
        WHERE id = $1 AND player2_id = $2
        RETURNING *`,
       [gameId, userId]
@@ -346,7 +351,7 @@ router.post('/games/:gameId/abandon', async (req, res) => {
   }
 });
 
-// Make a game move
+
 router.post('/games/:gameId/move', async (req, res) => {
   try {
     const { gameId } = req.params;
@@ -356,39 +361,82 @@ router.post('/games/:gameId/move', async (req, res) => {
       return res.status(400).json({ error: 'userId, from et to requis' });
     }
 
-    // Verify user is part of the game
-    const game = await pool.query(
+    // 1. Load game from DB
+    const gameResult = await pool.query(
       'SELECT * FROM games WHERE id = $1',
       [gameId]
     );
 
-    if (game.rows.length === 0) {
-      return res.status(404).json({ error: 'Partie non trouvée' });
+    if (gameResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Partie non trouvee' });
     }
 
-    const gameData = game.rows[0];
+    const gameData = gameResult.rows[0];
+
+    // 2. Verify user is part of the game
     if (gameData.player1_id !== userId && gameData.player2_id !== userId) {
-      return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à jouer dans cette partie' });
+      return res.status(403).json({ error: 'Vous n\'etes pas autorise a jouer dans cette partie' });
     }
 
-    // TODO: Add move validation logic here
-    
-    // Record the move
-    await pool.query(
-      'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',
-      [gameId, userId, from.row, from.col, to.row, to.col]
-    );
+    // 3. Validate and apply move (server-side authoritative)
+    const moveResult = validateAndApplyMove(gameData, userId, from, to);
 
-    // Update game state in database
-    // TODO: Implement proper game state update logic
+    if (!moveResult.success) {
+      return res.status(400).json({ error: moveResult.error });
+    }
 
-    // Broadcast move to all players in the game room via WebSocket
-    broadcastToGameRoom(gameRooms, gameId, {
-      type: 'GAME_MOVE',
-      data: { userId, from, to, gameId }
-    });
+    // 4-5. Persist updated game_state and current_turn and record move in a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    res.json({ success: true, move: { from, to } });
+      const newCurrentTurn = (gameData.game_state && gameData.game_state.currentTurn) ? gameData.game_state.currentTurn : null;
+
+      let updateRes;
+
+      // 🏆 Si victoire détectée, mettre à jour le statut et le gagnant
+      if (moveResult.winner) {
+        const winnerId = moveResult.winner === 1 ? gameData.player1_id : gameData.player2_id;
+        updateRes = await client.query(
+          `UPDATE games 
+           SET game_state = $1, current_turn = $2, status = 'finished', ended_at = CURRENT_TIMESTAMP, winner_id = $3
+           WHERE id = $4 
+           RETURNING *`,
+          [gameData.game_state, newCurrentTurn, winnerId, gameId]
+        );
+      } else {
+        updateRes = await client.query(
+          `UPDATE games 
+           SET game_state = $1, current_turn = $2
+           WHERE id = $3 
+           RETURNING *`,
+          [gameData.game_state, newCurrentTurn, gameId]
+        );
+      }
+
+      await client.query(
+        'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',
+        [gameId, userId, from.row, from.col, to.row, to.col]
+      );
+
+      await client.query('COMMIT');
+
+      const updatedGame = updateRes.rows[0];
+
+      // 6. Broadcast full GAME_STATE (use updated row so current_turn is present)
+      broadcastToGameRoom(gameRooms, gameId, {
+        type: 'GAME_STATE',
+        data: updatedGame
+      });
+
+      res.json({ success: true, move: { from, to }, game: updatedGame });
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error('Erreur lors de la sauvegarde du mouvement:', dbErr);
+      res.status(500).json({ error: 'Erreur serveur' });
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('Erreur lors du mouvement:', err);
     res.status(500).json({ error: 'Erreur serveur' });
