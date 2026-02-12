@@ -30,7 +30,6 @@
         <section class="games-section">
             <div class="section-header">
                 <h2>Mes Parties</h2>
-                <button id="newGameBtn" class="btn btn-primary">Nouvelle Partie</button>
             </div>
 
             <div id="gamesList" class="games-list">
@@ -42,22 +41,6 @@
             </div>
         </section>
     </main>
-
-    <!-- Modal pour nouvelle partie -->
-    <div id="newGameModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Nouvelle Partie</h3>
-                <button class="modal-close" onclick="closeNewGameModal()">✕</button>
-            </div>
-            <div class="modal-body">
-                <p>Créer une nouvelle partie:</p>
-                <button class="btn btn-primary" onclick="createNewGame()">
-                    Créer et inviter un adversaire
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Global Invitation Modal (received from general channel) -->
     <div id="globalInviteModal" class="modal hidden">

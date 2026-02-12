@@ -19,9 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('errorAlert').textContent = 'Erreur lors du chargement des parties';
         document.getElementById('errorAlert').classList.remove('hidden');
     }
-
-    // Bouton pour créer une nouvelle partie
-    document.getElementById('newGameBtn').addEventListener('click', openNewGameModal);
 });
 
 function renderGames(games) {
@@ -106,52 +103,8 @@ function inviteOpponent(gameId) {
     window.location.href = `game.html?gameId=${gameId}`;
 }
 
-function openNewGameModal() {
-    document.getElementById('newGameModal').classList.remove('hidden');
-}
-
-function closeNewGameModal() {
-    document.getElementById('newGameModal').classList.add('hidden');
-}
-
-async function createNewGame() {
-    const userId = localStorage.getItem('userId');
-    const token = localStorage.getItem('token');
-
-    try {
-        const response = await fetch('/api/games', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                player1Id: userId
-            })
-        });
-
-        const game = await response.json();
-
-        closeNewGameModal();
-
-        // Aller sur la page de la partie pour inviter quelqu'un
-        window.location.href = `game.html?gameId=${game.id}`;
-    } catch (err) {
-        console.error('Erreur lors de la création de la partie:', err);
-        alert('Erreur lors de la création de la partie');
-    }
-}
-
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
-
-// Fermer le modal en cliquant en dehors
-document.addEventListener('click', (e) => {
-    const modal = document.getElementById('newGameModal');
-    if (e.target === modal) {
-        closeNewGameModal();
-    }
-});
