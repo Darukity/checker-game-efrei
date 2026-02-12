@@ -4,8 +4,19 @@ import { BOARD_SIZE, gameState, clearSelection } from './gameState.js';
 import { renderBoard, updateGameStatus } from './boardRenderer.js';
 
 function handleSquareClick(row, col) {
-    if (gameState.isSpectator) return;
+    // First check: block spectators
+    if (gameState.isSpectator) {
+        console.log('Spectateur - impossible de jouer');
+        return;
+    }
     
+    // Second check: ensure user has a valid player color (is actually a player)
+    if (gameState.playerColor === null || gameState.playerColor === undefined) {
+        console.log('Pas un joueur - impossible de jouer');
+        return;
+    }
+    
+    // Third check: ensure it's the player's turn and game is in progress
     if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
         return;
     }
@@ -35,6 +46,9 @@ function handleSquareClick(row, col) {
 }
 
 function makeMove(from, to) {
+  console.log(`🎯 Making move - from: (${from.row},${from.col}) to: (${to.row},${to.col})`);
+  console.log(`📊 Current state - playerColor: ${gameState.playerColor}, currentTurn: ${gameState.currentTurn}, isPlayerTurn: ${gameState.isPlayerTurn}`);
+  
   // Send move to server via POST request (no local optimistic update)
   fetch(`/api/games/${gameState.gameId}/move`, {
     method: 'POST',

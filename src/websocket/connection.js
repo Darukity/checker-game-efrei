@@ -174,6 +174,33 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
             type: 'PLAYER_DISCONNECTED',
             data: { userId, gameId: currentGameId }
           });
+          
+          // Remove from game_viewers table and update count
+          try {
+            const pool = require('../db/pool');
+            await pool.query(
+              'DELETE FROM game_viewers WHERE game_id = $1 AND user_id = $2',
+              [currentGameId, userId]
+            );
+
+            // Get game info to exclude actual players from viewer count
+            const game = await pool.query('SELECT player1_id, player2_id FROM games WHERE id = $1', [currentGameId]);
+            
+            if (game.rows.length > 0) {
+              const viewerCount = await pool.query(
+                'SELECT COUNT(*) as count FROM game_viewers WHERE game_id = $1 AND user_id NOT IN ($2, $3)',
+                [currentGameId, game.rows[0].player1_id, game.rows[0].player2_id]
+              );
+
+              // Broadcast updated viewer count
+              broadcastToGameRoom(gameRooms, currentGameId, {
+                type: 'VIEWER_COUNT_UPDATE',
+                data: { gameId: currentGameId, count: viewerCount.rows[0].count }
+              });
+            }
+          } catch (err) {
+            console.error('Erreur lors de la mise à jour des viewers après déconnexion:', err);
+          }
         }
 
         // Retirer de userConnections si c'est bien cette WebSocket

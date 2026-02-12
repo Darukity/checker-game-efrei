@@ -165,7 +165,8 @@ router.get('/games/:userId', async (req, res) => {
         u1.username as player1_username,
         u2.username as player2_username,
         u_winner.username as winner_username,
-        (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id) as viewer_count
+        (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id 
+         AND user_id NOT IN (g.player1_id, g.player2_id)) as viewer_count
       FROM games g
       LEFT JOIN users u1 ON g.player1_id = u1.id
       LEFT JOIN users u2 ON g.player2_id = u2.id
@@ -362,7 +363,8 @@ router.get('/games', async (req, res) => {
         g.started_at,
         u1.username as player1_username,
         u2.username as player2_username,
-        (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id) as viewer_count
+        (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id 
+         AND user_id NOT IN (g.player1_id, g.player2_id)) as viewer_count
       FROM games g
       LEFT JOIN users u1 ON g.player1_id = u1.id
       LEFT JOIN users u2 ON g.player2_id = u2.id
@@ -448,10 +450,20 @@ router.post('/games/:gameId/move', async (req, res) => {
 
       const updatedGame = updateRes.rows[0];
 
+      // Get player usernames to include in broadcast
+      const player1 = await pool.query('SELECT username FROM users WHERE id = $1', [updatedGame.player1_id]);
+      const player2 = updatedGame.player2_id ? await pool.query('SELECT username FROM users WHERE id = $1', [updatedGame.player2_id]) : null;
+
+      const gameStateToSend = {
+        ...updatedGame,
+        player1_username: player1.rows[0]?.username,
+        player2_username: player2?.rows[0]?.username
+      };
+
       // 6. Broadcast full GAME_STATE (use updated row so current_turn is present)
       broadcastToGameRoom(gameRooms, gameId, {
         type: 'GAME_STATE',
-        data: updatedGame
+        data: gameStateToSend
       });
 
       res.json({ success: true, move: { from, to }, game: updatedGame });

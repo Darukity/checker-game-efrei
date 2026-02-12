@@ -22,6 +22,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup WebSocket event handlers
     setupWebSocketHandlers(wsManager);
 
+    // If WebSocket is already authenticated (coming from lobby/other page),
+    // immediately join the game room instead of waiting for AUTH_SUCCESS
+    if (wsManager.isReady()) {
+        console.log(`🎮 WebSocket déjà authentifié, rejoindre la partie ${gameId}`);
+        wsManager.joinGameRoom(gameId);
+        wsManager.send('VIEW_GAME', { gameId: gameId });
+    }
+
     // Event listeners for game controls - with null safety
     const abandonBtn = document.getElementById('abandonBtn');
     const sendChatBtn = document.getElementById('sendChatBtn');
