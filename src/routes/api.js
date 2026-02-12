@@ -159,12 +159,15 @@ router.get('/games/:userId', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         g.id, g.status, g.created_at, g.started_at, g.ended_at,
+        g.winner_id,
         u1.username as player1_username,
         u2.username as player2_username,
+        u_winner.username as winner_username,
         (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id) as viewer_count
       FROM games g
       LEFT JOIN users u1 ON g.player1_id = u1.id
       LEFT JOIN users u2 ON g.player2_id = u2.id
+      LEFT JOIN users u_winner ON g.winner_id = u_winner.id
       WHERE g.player1_id = $1 OR g.player2_id = $1
       ORDER BY g.created_at DESC
     `, [userId]);

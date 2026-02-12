@@ -22,19 +22,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup WebSocket event handlers
     setupWebSocketHandlers(wsManager);
 
-    // Event listeners for game controls
-    document.getElementById('abandonBtn').addEventListener('click', abandonGame);
-    document.getElementById('sendChatBtn').addEventListener('click', sendChatMessage);
+    // Event listeners for game controls - with null safety
+    const abandonBtn = document.getElementById('abandonBtn');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const chatInput = document.getElementById('chatInput');
+    const cancelAbandonBtn = document.getElementById('cancelAbandonBtn');
+    const closeNotificationBtn = document.getElementById('closeNotificationBtn');
 
-    document.getElementById('chatInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendChatMessage();
-        }
-    });
+    if (abandonBtn) {
+        abandonBtn.addEventListener('click', abandonGame);
+    }
+
+    if (sendChatBtn) {
+        sendChatBtn.addEventListener('click', sendChatMessage);
+    }
+
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+    }
 
     // Modal controls - attach to window for global access
-    document.getElementById('cancelAbandonBtn').addEventListener('click', closeAbandonModal);
-    document.getElementById('closeNotificationBtn')?.addEventListener('click', closeNotificationModal);
+    if (cancelAbandonBtn) {
+        cancelAbandonBtn.addEventListener('click', closeAbandonModal);
+    }
+
+    if (closeNotificationBtn) {
+        closeNotificationBtn.addEventListener('click', closeNotificationModal);
+    }
 
     // Initial render
     renderBoard(handleSquareClick);

@@ -35,7 +35,7 @@ function renderGames(games) {
     emptyState.classList.add('hidden');
 
     gamesList.innerHTML = games.map(game => {
-        const statusText = getStatusText(game.status);
+        const statusText = getStatusText(game.status, game.winner_username);
         const statusClass = game.status;
         const createdDate = new Date(game.created_at).toLocaleDateString('fr-FR');
 
@@ -81,11 +81,16 @@ function renderGames(games) {
     }).join('');
 }
 
-function getStatusText(status) {
+function getStatusText(status, winnerUsername) {
+    if (status === 'finished' && winnerUsername) {
+        return `🏆 Victoire de ${escapeHtml(winnerUsername)}`;
+    }
+    
     const statusMap = {
         'waiting_for_opponent': '⏳ En attente',
         'in_progress': '🎮 En cours',
-        'completed': '✅ Terminée'
+        'finished': '✅ Terminée',
+        'completed': '✅ Terminée' // Backward compatibility
     };
     return statusMap[status] || status;
 }
