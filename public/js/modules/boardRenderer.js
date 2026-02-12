@@ -42,11 +42,6 @@ function createSquare(row, col, handleSquareClick) {
         square.classList.add('selected');
     }
 
-    // Vérifier si c'est un mouvement valide
-    if (gameState.validMoves.some(m => m.row === row && m.col === col)) {
-        square.classList.add('valid-move');
-    }
-
     // Afficher les pions
     if (piece) {
         const pieceLetter = piece === 1 ? '●' : '○';

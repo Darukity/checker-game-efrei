@@ -60,6 +60,7 @@ const initDb = async () => {
         ended_at TIMESTAMP,
         winner_id INT REFERENCES users(id) ON DELETE SET NULL,
         game_state JSONB DEFAULT '{}',
+        current_turn INT,
         status VARCHAR(20) DEFAULT 'waiting_for_opponent'
       );
 

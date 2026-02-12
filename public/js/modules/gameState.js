@@ -31,19 +31,19 @@ const gameState = {
     currentPlayerId: null,
     board: initializeBoard(),
     selectedSquare: null,
-    validMoves: [],
     isPlayerTurn: false,
     playerColor: null,
     opponentId: null,
-    gameStatus: 'waiting'
+    gameStatus: 'waiting',
+    currentTurn: null
 };
 
 function resetGameState() {
     gameState.board = initializeBoard();
     gameState.selectedSquare = null;
-    gameState.validMoves = [];
     gameState.isPlayerTurn = false;
     gameState.gameStatus = 'waiting';
+    gameState.currentTurn = null;
 }
 
 function updateGameStateFromServer(data) {
@@ -57,7 +57,7 @@ function updateGameStateFromServer(data) {
             gameStateData = JSON.parse(gameStateData);
         }
         
-        // Extract board or initialize new one
+        // Extract board and currentTurn from game_state
         if (gameStateData && gameStateData.board && Array.isArray(gameStateData.board)) {
             console.log('Using board from game_state');
             gameState.board = gameStateData.board;
@@ -66,19 +66,26 @@ function updateGameStateFromServer(data) {
             gameState.board = initializeBoard();
         }
         
+        // Get currentTurn from game_state; if missing, leave null so server defines it
+        if (gameStateData && typeof gameStateData.currentTurn !== 'undefined') {
+            gameState.currentTurn = gameStateData.currentTurn;
+        } else {
+            gameState.currentTurn = null; // unknown - server must provide
+        }
+        
         gameState.opponentId = data.player1_id === gameState.currentPlayerId ? data.player2_id : data.player1_id;
         gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
         gameState.gameStatus = data.status;
 
-        // Initialize turn state based on game status
-        // Player 1 (black pieces) always goes first when game is in progress
+        // Determine if it's our turn based on currentTurn from server
         if (data.status === 'in_progress') {
-            gameState.isPlayerTurn = gameState.playerColor === 1;
-            console.log(`🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`);
+            // Only grant turn if server explicitly provided currentTurn
+            gameState.isPlayerTurn = (gameState.currentTurn !== null && gameState.currentTurn === gameState.playerColor);
+            console.log('Game in progress - Player', gameState.currentPlayerId, '(color', gameState.playerColor, '), currentTurn:', gameState.currentTurn, ', isPlayerTurn:', gameState.isPlayerTurn);
         } else {
             // For waiting or other statuses, no one has a turn yet
             gameState.isPlayerTurn = false;
-            console.log(`⏳ Game status: ${data.status} - waiting for game to start`);
+            console.log('Game status:', data.status, '- waiting for game to start');
         }
 
         return {
@@ -92,20 +99,8 @@ function updateGameStateFromServer(data) {
     }
 }
 
-function applyMove(from, to) {
-    const piece = gameState.board[from.row][from.col];
-    gameState.board[to.row][to.col] = piece;
-    gameState.board[from.row][from.col] = 0;
-
-    // Vérifier s'il faut devenir une dame
-    if ((piece === 1 && to.row === BOARD_SIZE - 1) || (piece === 2 && to.row === 0)) {
-        // Marquer comme dame (dans une vraie implémentation)
-    }
-}
-
 function clearSelection() {
     gameState.selectedSquare = null;
-    gameState.validMoves = [];
 }
 
 export {
@@ -114,6 +109,5 @@ export {
     initializeBoard,
     resetGameState,
     updateGameStateFromServer,
-    applyMove,
     clearSelection
 };
