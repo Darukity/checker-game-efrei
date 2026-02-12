@@ -26,6 +26,8 @@ function calculateValidMoves(row, col) {
 }
 
 function handleSquareClick(row, col) {
+    if (gameState.isSpectator) return;
+    
     if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
         return;
     }

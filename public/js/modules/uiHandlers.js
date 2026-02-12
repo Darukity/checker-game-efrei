@@ -53,6 +53,7 @@ function sendChatMessage() {
 }
 
 function abandonGame() {
+    if (gameState.isSpectator) return;
     // Afficher le modal de confirmation
     document.getElementById('abandonModal').classList.remove('hidden');
     

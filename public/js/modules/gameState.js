@@ -35,7 +35,8 @@ const gameState = {
     isPlayerTurn: false,
     playerColor: null,
     opponentId: null,
-    gameStatus: 'waiting'
+    gameStatus: 'waiting',
+    isSpectator: false
 };
 
 function resetGameState() {
@@ -65,18 +66,31 @@ function updateGameStateFromServer(data) {
             console.log('Initializing new board');
             gameState.board = initializeBoard();
         }
-        
-        gameState.opponentId = data.player1_id === gameState.currentPlayerId ? data.player2_id : data.player1_id;
-        gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
+
+        // 🔥 AJOUT MODE SPECTATEUR
+        gameState.isSpectator = data.isSpectator || false;
+
+        gameState.opponentId =
+            data.player1_id === gameState.currentPlayerId
+                ? data.player2_id
+                : data.player1_id;
+
+        gameState.playerColor =
+            data.player1_id === gameState.currentPlayerId ? 1 : 2;
+
         gameState.gameStatus = data.status;
 
-        // Initialize turn state based on game status
-        // Player 1 (black pieces) always goes first when game is in progress
-        if (data.status === 'in_progress') {
+        // 🔥 Gestion du tour
+        if (gameState.isSpectator) {
+            // En mode spectateur on ne joue jamais
+            gameState.isPlayerTurn = false;
+        } else if (data.status === 'in_progress') {
+            // Player 1 (black pieces) always goes first
             gameState.isPlayerTurn = gameState.playerColor === 1;
-            console.log(`🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`);
+            console.log(
+                `🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`
+            );
         } else {
-            // For waiting or other statuses, no one has a turn yet
             gameState.isPlayerTurn = false;
             console.log(`⏳ Game status: ${data.status} - waiting for game to start`);
         }

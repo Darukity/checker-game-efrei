@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Parties en cours - Dame Projet</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/navbar.css">
+    <link rel="stylesheet" href="css/myGames.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-container">
+        <div class="navbar-title">
+            <h1>🎮 Dame Projet</h1>
+        </div>
+        <div class="navbar-center">
+            <span id="userPseudo" class="user-pseudo">Utilisateur</span>
+            <span id="connStatus" class="connection-status online">● En ligne</span>
+        </div>
+        <div class="navbar-buttons">
+            <a href="lobby.html" class="nav-btn">Liste d'adversaires</a>
+            <a href="myGames.html" class="nav-btn">Mes Parties</a>
+            <a href="spectator.html" class="nav-btn active">Spectateur</a>
+            <button id="logoutBtn" class="nav-btn logout">Déconnexion</button>
+        </div>
+    </div>
+</nav>
+
+<main class="container">
+    <section class="games-section">
+        <div class="section-header">
+            <h2>Parties en cours</h2>
+        </div>
+
+        <div id="gamesList" class="games-list">
+            <div class="loading">Chargement des parties...</div>
+        </div>
+
+        <div id="emptyState" class="empty-state hidden">
+            <p>Aucune partie en cours</p>
+        </div>
+    </section>
+</main>
+
+<script src="js/websocket.js"></script>
+<script src="js/navbar.js"></script>
+<script src="js/spectator.js"></script>
+
+</body>
+</html>
