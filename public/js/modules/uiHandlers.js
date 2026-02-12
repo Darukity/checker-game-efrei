@@ -12,11 +12,19 @@ function addChatMessage(data) {
     const chatMessages = document.getElementById('chatMessages');
     const msgEl = document.createElement('div');
     
-    // Check if message is from current user
     const isFromCurrentUser = data.userId === gameState.currentPlayerId;
     msgEl.className = `chat-message ${isFromCurrentUser ? 'own' : ''}`;
     
-    const sender = isFromCurrentUser ? 'Vous' : `Joueur ${data.userId}`;
+    // 🔥 AFFICHAGE PROPRE DU NOM
+    let sender;
+
+    if (isFromCurrentUser) {
+        sender = 'Vous';
+    } else if (data.username) {
+        sender = data.username;
+    } else {
+        sender = `Utilisateur ${data.userId}`;
+    }
     
     msgEl.innerHTML = `<strong>${sender}</strong>: ${escapeHtml(data.message)}`;
     chatMessages.appendChild(msgEl);
@@ -29,7 +37,6 @@ function sendChatMessage() {
 
     if (!message) return;
 
-    // Send chat message via POST request
     fetch(`/api/games/${gameState.gameId}/chat`, {
         method: 'POST',
         headers: {
@@ -43,7 +50,6 @@ function sendChatMessage() {
     })
     .then(res => res.json())
     .then(() => {
-        // Server will broadcast to all players via WebSocket
         chatInput.value = '';
     })
     .catch(err => {
@@ -53,10 +59,11 @@ function sendChatMessage() {
 }
 
 function abandonGame() {
-    // Afficher le modal de confirmation
+    // 🔥 BLOQUER ABANDON SI SPECTATEUR
+    if (gameState.isSpectator) return;
+
     document.getElementById('abandonModal').classList.remove('hidden');
     
-    // Gérer le clic sur le bouton de confirmation
     const confirmBtn = document.getElementById('confirmAbandonBtn');
     const handler = () => {
         confirmBtn.removeEventListener('click', handler);
@@ -77,13 +84,17 @@ function abandonGame() {
             }
             return res.json();
         })
-        .then(data => {
+        .then(() => {
             closeAbandonModal();
             // Leave game room before redirecting
             wsManager.leaveGameRoom();
-            showNotification('Abandon confirmé', 'Vous avez abandonné la partie. Votre adversaire a gagné!', () => {
-                window.location.href = 'myGames.html';
-            });
+            showNotification(
+                'Abandon confirmé',
+                'Vous avez abandonné la partie. Votre adversaire a gagné!',
+                () => {
+                    window.location.href = 'myGames.html';
+                }
+            );
         })
         .catch(err => {
             console.error('Erreur lors de l\'abandon:', err);
@@ -112,9 +123,7 @@ function showNotification(title, message, callback = null) {
     const handler = () => {
         notificationBtn.removeEventListener('click', handler);
         closeNotificationModal();
-        if (callback) {
-            callback();
-        }
+        if (callback) callback();
     };
     notificationBtn.addEventListener('click', handler);
 }

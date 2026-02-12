@@ -351,6 +351,31 @@ router.post('/games/:gameId/abandon', async (req, res) => {
   }
 });
 
+// Spectateur
+router.get('/games', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        g.id,
+        g.status,
+        g.created_at,
+        g.started_at,
+        u1.username as player1_username,
+        u2.username as player2_username,
+        (SELECT COUNT(*) FROM game_viewers WHERE game_id = g.id) as viewer_count
+      FROM games g
+      LEFT JOIN users u1 ON g.player1_id = u1.id
+      LEFT JOIN users u2 ON g.player2_id = u2.id
+      WHERE g.status = 'in_progress'
+      ORDER BY g.started_at DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur récupération parties en cours:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 router.post('/games/:gameId/move', async (req, res) => {
   try {

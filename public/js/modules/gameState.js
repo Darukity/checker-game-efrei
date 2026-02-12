@@ -35,7 +35,8 @@ const gameState = {
     playerColor: null,
     opponentId: null,
     gameStatus: 'waiting',
-    currentTurn: null
+    currentTurn: null,
+    isSpectator: false
 };
 
 function resetGameState() {
@@ -75,15 +76,31 @@ function updateGameStateFromServer(data) {
         
         gameState.opponentId = data.player1_id === gameState.currentPlayerId ? data.player2_id : data.player1_id;
         gameState.playerColor = data.player1_id === gameState.currentPlayerId ? 1 : 2;
+
+        // 🔥 AJOUT MODE SPECTATEUR
+        gameState.isSpectator = data.isSpectator || false;
+
+        gameState.opponentId =
+            data.player1_id === gameState.currentPlayerId
+                ? data.player2_id
+                : data.player1_id;
+
+        gameState.playerColor =
+            data.player1_id === gameState.currentPlayerId ? 1 : 2;
+
         gameState.gameStatus = data.status;
 
-        // Determine if it's our turn based on currentTurn from server
-        if (data.status === 'in_progress') {
-            // Only grant turn if server explicitly provided currentTurn
-            gameState.isPlayerTurn = (gameState.currentTurn !== null && gameState.currentTurn === gameState.playerColor);
-            console.log('Game in progress - Player', gameState.currentPlayerId, '(color', gameState.playerColor, '), currentTurn:', gameState.currentTurn, ', isPlayerTurn:', gameState.isPlayerTurn);
+        // 🔥 Gestion du tour
+        if (gameState.isSpectator) {
+            // En mode spectateur on ne joue jamais
+            gameState.isPlayerTurn = false;
+        } else if (data.status === 'in_progress') {
+            // Player 1 (black pieces) always goes first
+            gameState.isPlayerTurn = gameState.playerColor === 1;
+            console.log(
+                `🎮 Game in progress - Player ${gameState.currentPlayerId} (color ${gameState.playerColor}), isPlayerTurn: ${gameState.isPlayerTurn}`
+            );
         } else {
-            // For waiting or other statuses, no one has a turn yet
             gameState.isPlayerTurn = false;
             console.log('Game status:', data.status, '- waiting for game to start');
         }

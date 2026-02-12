@@ -4,9 +4,11 @@ import { BOARD_SIZE, gameState, clearSelection } from './gameState.js';
 import { renderBoard, updateGameStatus } from './boardRenderer.js';
 
 function handleSquareClick(row, col) {
-  if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
-    return;
-  }
+    if (gameState.isSpectator) return;
+    
+    if (!gameState.isPlayerTurn || gameState.gameStatus !== 'in_progress') {
+        return;
+    }
 
   // Si une case est déjà sélectionnée
   if (gameState.selectedSquare) {
