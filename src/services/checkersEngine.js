@@ -23,6 +23,11 @@ function getDirections(piece) {
   return [];
 }
 
+function isOpponentPiece(piece, playerColor) {
+  if (!piece) return false;
+  return !isPlayerPiece(piece, playerColor);
+}
+
 function calculateValidMoves(board, row, col, playerColor) {
   const moves = [];
   const piece = board[row][col];
@@ -89,53 +94,162 @@ function applyMove(board, from, to) {
 }
 
 function validateAndApplyMove(gameData, playerId, from, to) {
-  // Validate input
-  if (!gameData || !gameData.game_state) {
-    throw new Error('Donnees de jeu invalides');
-  }
-  
   const gameState = gameData.game_state;
   const { board, currentTurn } = gameState;
   const { player1_id } = gameData;
 
   const playerColor = player1_id === playerId ? 1 : 2;
 
-  // Verify it's player's turn
-  if (currentTurn !== playerColor) {
-    throw new Error("Ce n'est pas votre tour");
-  }
+  // 🔹 Validation: C'est le tour du joueur?
+  if (currentTurn !== playerColor)
+    return { success: false, error: "Ce n'est pas votre tour" };
 
-  // Verify valid positions
-  if (!from || !to || from.row === undefined || from.col === undefined || to.row === undefined || to.col === undefined) {
-    throw new Error("Positions invalides");
-  }
+  // 🔹 Validation: Position valide?
+  if (!isInsideBoard(from.row, from.col) || !isInsideBoard(to.row, to.col))
+    return { success: false, error: "Position invalide" };
 
-  // Verify position is on board
-  if (!isInsideBoard(from.row, from.col) || !isInsideBoard(to.row, to.col)) {
-    throw new Error("Position en dehors du plateau");
-  }
-
-  // Verify piece belongs to player
   const piece = board[from.row][from.col];
-  if (!isPlayerPiece(piece, playerColor)) {
-    throw new Error("Piece invalide");
+
+  // 🔹 Validation: Pièce valide?
+  if (!isPlayerPiece(piece, playerColor))
+    return { success: false, error: "Piece invalide" };
+
+  const mustCapture = playerHasCapture(board, playerColor);
+  const captures = getCaptures(board, from.row, from.col, playerColor);
+
+  // 🔥 CAPTURE OBLIGATOIRE
+  if (mustCapture && captures.length === 0)
+    return { success: false, error: "Capture obligatoire" };
+
+  let isValid = false;
+
+  if (captures.length > 0) {
+    isValid = captures.some(
+      c => c.to.row === to.row && c.to.col === to.col
+    );
+  } else {
+    const directions = getDirections(piece);
+    for (const [dr, dc] of directions) {
+      if (from.row + dr === to.row && from.col + dc === to.col) {
+        if (board[to.row][to.col] === 0) isValid = true;
+      }
+    }
   }
 
-  // Verify valid move
-  const validMoves = calculateValidMoves(board, from.row, from.col, playerColor);
-  const isValid = validMoves.some(m => m.row === to.row && m.col === to.col);
+  // 🔹 Validation: Mouvement valide?
+  if (!isValid)
+    return { success: false, error: "Mouvement invalide" };
 
-  if (!isValid) {
-    throw new Error("Mouvement invalide");
+  // 🔥 Appliquer le mouvement
+  applyMoveWithMultiCapture(board, from, to, playerColor);
+
+  // 🔍 Vérifier la victoire
+  const winner = checkVictory(board);
+
+  if (winner) {
+    console.log(`Player ${winner} wins!`);
+    gameState.status = "finished";
+    gameState.winner = winner;
+    return { success: true, gameData, winner };
+  } else {
+    gameState.currentTurn = playerColor === 1 ? 2 : 1;
+    console.log(`Turn switched. Next player: ${gameState.currentTurn}`);
+    return { success: true, gameData };
+  }
+}
+
+function getCaptures(board, row, col, playerColor) {
+  const piece = board[row][col];
+  const directions = getDirections(piece);
+  const captures = [];
+
+  for (const [dr, dc] of directions) {
+    const midRow = row + dr;
+    const midCol = col + dc;
+    const jumpRow = row + dr * 2;
+    const jumpCol = col + dc * 2;
+
+    if (
+      isInsideBoard(jumpRow, jumpCol) &&
+      isOpponentPiece(board[midRow][midCol], playerColor) &&
+      board[jumpRow][jumpCol] === 0
+    ) {
+      captures.push({
+        to: { row: jumpRow, col: jumpCol },
+        captured: { row: midRow, col: midCol }
+      });
+    }
   }
 
-  // Apply move (modifies board in-place)
-  applyMove(board, from, to);
+  return captures;
+}
 
-  // Change turn
-  gameState.currentTurn = playerColor === 1 ? 2 : 1;
+function playerHasCapture(board, playerColor) {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (isPlayerPiece(board[r][c], playerColor)) {
+        if (getCaptures(board, r, c, playerColor).length > 0) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
 
-  return gameData;
+function applyMoveWithMultiCapture(board, from, to, playerColor) {
+  const piece = board[from.row][from.col];
+  board[to.row][to.col] = piece;
+  board[from.row][from.col] = 0;
+
+  // Si capture
+  if (Math.abs(to.row - from.row) === 2) {
+    const capturedRow = (from.row + to.row) / 2;
+    const capturedCol = (from.col + to.col) / 2;
+    board[capturedRow][capturedCol] = 0;
+
+    // 🔥 MULTI SAUT AUTOMATIQUE
+    let nextCaptures = getCaptures(board, to.row, to.col, playerColor);
+
+    while (nextCaptures.length > 0) {
+      const next = nextCaptures[0]; // prend la première capture possible
+      const newFrom = { row: to.row, col: to.col };
+      const newTo = next.to;
+
+      board[newTo.row][newTo.col] = board[newFrom.row][newFrom.col];
+      board[newFrom.row][newFrom.col] = 0;
+      board[next.captured.row][next.captured.col] = 0;
+
+      to = newTo;
+      nextCaptures = getCaptures(board, to.row, to.col, playerColor);
+    }
+  }
+
+  // Promotion
+  if (piece === 1 && to.row === BOARD_SIZE - 1)
+    board[to.row][to.col] = 3;
+  if (piece === 2 && to.row === 0)
+    board[to.row][to.col] = 4;
+
+  return board;
+}
+
+function checkVictory(board) {
+  let player1Pieces = 0;
+  let player2Pieces = 0;
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === 1 || board[r][c] === 3) player1Pieces++;
+      if (board[r][c] === 2 || board[r][c] === 4) player2Pieces++;
+    }
+  }
+  console.log(`Player 1 pieces: ${player1Pieces}, Player 2 pieces: ${player2Pieces}`);
+
+  if (player1Pieces === 0) return 2;
+  if (player2Pieces === 0) return 1;
+
+  return null;
 }
 
 module.exports = {
@@ -143,5 +257,9 @@ module.exports = {
   applyMove,
   validateAndApplyMove,
   isPlayerPiece,
-  isInsideBoard
+  isInsideBoard,
+  playerHasCapture,
+  getCaptures,
+  applyMoveWithMultiCapture,
+  checkVictory
 };

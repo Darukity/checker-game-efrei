@@ -376,10 +376,10 @@ router.post('/games/:gameId/move', async (req, res) => {
     }
 
     // 3. Validate and apply move (server-side authoritative)
-    try {
-      validateAndApplyMove(gameData, userId, from, to);
-    } catch (validationErr) {
-      return res.status(400).json({ error: validationErr.message });
+    const moveResult = validateAndApplyMove(gameData, userId, from, to);
+
+    if (!moveResult.success) {
+      return res.status(400).json({ error: moveResult.error });
     }
 
     // 4-5. Persist updated game_state and current_turn and record move in a transaction
@@ -389,10 +389,27 @@ router.post('/games/:gameId/move', async (req, res) => {
 
       const newCurrentTurn = (gameData.game_state && gameData.game_state.currentTurn) ? gameData.game_state.currentTurn : null;
 
-      const updateRes = await client.query(
-        'UPDATE games SET game_state = $1, current_turn = $2 WHERE id = $3 RETURNING *',
-        [gameData.game_state, newCurrentTurn, gameId]
-      );
+      let updateRes;
+
+      // 🏆 Si victoire détectée, mettre à jour le statut et le gagnant
+      if (moveResult.winner) {
+        const winnerId = moveResult.winner === 1 ? gameData.player1_id : gameData.player2_id;
+        updateRes = await client.query(
+          `UPDATE games 
+           SET game_state = $1, current_turn = $2, status = 'finished', ended_at = CURRENT_TIMESTAMP, winner_id = $3
+           WHERE id = $4 
+           RETURNING *`,
+          [gameData.game_state, newCurrentTurn, winnerId, gameId]
+        );
+      } else {
+        updateRes = await client.query(
+          `UPDATE games 
+           SET game_state = $1, current_turn = $2
+           WHERE id = $3 
+           RETURNING *`,
+          [gameData.game_state, newCurrentTurn, gameId]
+        );
+      }
 
       await client.query(
         'INSERT INTO game_moves (game_id, player_id, from_row, from_col, to_row, to_col) VALUES ($1, $2, $3, $4, $5, $6)',

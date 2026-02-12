@@ -130,6 +130,12 @@
     background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
 }
 
+/* Style distinctif pour les dames */
+.piece.dame {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 0 12px currentColor;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
 .piece.king::after {
     content: '♚';
     margin-left: 2px;

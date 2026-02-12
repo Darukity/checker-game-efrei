@@ -27,6 +27,24 @@ function setupWebSocketHandlers(wsManager) {
             console.log('Board after update:', gameState.board);
             renderBoard(handleSquareClick);
             updateGameStatus();
+
+            //Vérifier si la partie est terminée (victoire détectée)
+            if (data.status === 'finished' && data.winner_id) {
+                const isYourVictory = data.winner_id === gameState.currentPlayerId;
+                const message = isYourVictory
+                    ? 'Félicitations! Vous avez remporté la victoire!'
+                    : 'Vous avez perdu cette partie...';
+                
+                setTimeout(() => {
+                    showNotification(
+                        isYourVictory ? '🎉 Victoire!' : '😢 Défaite',
+                        message,
+                        () => {
+                            window.location.href = 'myGames.html';
+                        }
+                    );
+                }, 500);
+            }
         } catch (error) {
             console.error('Error processing GAME_STATE:', error);
             console.error('data:', data);
