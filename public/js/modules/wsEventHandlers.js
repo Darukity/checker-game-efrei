@@ -3,7 +3,8 @@
 import { gameState, updateGameStateFromServer, clearSelection } from './gameState.js';
 import { renderBoard, updateGameStatus, updatePlayerNames, updateSpectatorUI } from './boardRenderer.js';
 import { handleSquareClick } from './moveLogic.js';
-import { addChatMessage, showNotification, updateViewerCount } from './uiHandlers.js';
+import { addChatMessage, showNotification, updateViewerCount, loadChatHistory } from './uiHandlers.js';
+
 
 function setupWebSocketHandlers(wsManager) {
     // Auth success - join the game room (while staying in general channel)
@@ -14,15 +15,10 @@ function setupWebSocketHandlers(wsManager) {
         wsManager.send('VIEW_GAME', { gameId: gameState.gameId });
     });
 
-    // Receive game state from server (including after moves)
-    wsManager.on('GAME_STATE', (data) => {
-        /* console.log('📨 GAME_STATE received:', {
-            current_turn: data.current_turn,
-            status: data.status,
-            player1_id: data.player1_id,
-            player2_id: data.player2_id,
-            currentPlayerId: gameState.currentPlayerId
-        }); */
+    // Receive game state from server
+    wsManager.on('GAME_STATE', async (data) => {
+        //console.log('État de la partie reçu:', data);
+        //console.log('Type of game_state:', typeof data.game_state);
         
         try {
             const playerNames = updateGameStateFromServer(data);
@@ -35,6 +31,7 @@ function setupWebSocketHandlers(wsManager) {
             // console.log('Board after update:', gameState.board);
             renderBoard(handleSquareClick);
             updateGameStatus();
+            await loadChatHistory();
 
             //Vérifier si la partie est terminée (victoire détectée)
             if (data.status === 'finished' && data.winner_id) {
