@@ -379,45 +379,6 @@ router.post('/invitations/:invitationId/reject', async (req, res) => {
   }
 });
 
-// Create a new game (deprecated - use POST /games/invite instead)
-router.post('/games', async (req, res) => {
-  try {
-    const { player1Id, player2Id } = req.body;
-
-    if (!player1Id || !player2Id) {
-      return res.status(400).json({ error: 'player1Id et player2Id requis' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO games (player1_id, player2_id, game_state, current_turn, status) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING *`,
-      [player1Id, player2Id, { board: initializeBoard(), currentTurn: null }, null, 'waiting_for_opponent']
-    ); 
-
-    const game = result.rows[0];
-
-    // Broadcast invitation to the invited player via general lobby channel
-    const player2Conn = userConnections.get(parseInt(player2Id));
-    
-    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
-      const inviteMessage = JSON.stringify({
-        type: 'GAME_INVITATION',
-        data: { 
-          fromUserId: player1Id, 
-          gameId: game.id
-        }
-      });
-      player2Conn.ws.send(inviteMessage);
-    }
-
-    res.status(201).json(game);
-  } catch (err) {
-    console.error('Erreur lors de la création du jeu:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
 // Abandon a game
 router.post('/games/:gameId/abandon', async (req, res) => {
   try {

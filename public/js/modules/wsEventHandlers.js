@@ -17,8 +17,8 @@ function setupWebSocketHandlers(wsManager) {
 
     // Receive game state from server
     wsManager.on('GAME_STATE', async (data) => {
-        console.log('État de la partie reçu:', data);
-        console.log('Type of game_state:', typeof data.game_state);
+        //console.log('État de la partie reçu:', data);
+        //console.log('Type of game_state:', typeof data.game_state);
         
         try {
             const playerNames = updateGameStateFromServer(data);
