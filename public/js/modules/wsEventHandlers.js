@@ -25,31 +25,48 @@ function setupWebSocketHandlers(wsManager) {
             updatePlayerNames(playerNames.player1Name, playerNames.player2Name);
             updateSpectatorUI(gameState.isSpectator);
             
-            // Clear the selection after receiving game state
             clearSelection();
-            
-            // console.log('Board after update:', gameState.board);
             renderBoard(handleSquareClick);
             updateGameStatus();
             await loadChatHistory();
+            
+            // Vérifier si la partie est terminée
+            if (data.status === 'finished') {
 
-            //Vérifier si la partie est terminée (victoire détectée)
-            if (data.status === 'finished' && data.winner_id) {
-                const isYourVictory = data.winner_id === gameState.currentPlayerId;
-                const message = isYourVictory
-                    ? 'Félicitations! Vous avez remporté la victoire!'
-                    : 'Vous avez perdu cette partie...';
-                
-                setTimeout(() => {
-                    showNotification(
-                        isYourVictory ? '🎉 Victoire!' : '😢 Défaite',
-                        message,
-                        () => {
-                            window.location.href = 'myGames.html';
-                        }
-                    );
-                }, 500);
+                // 👀 Cas spectateur
+                if (gameState.isSpectator) {
+                    setTimeout(() => {
+                        showNotification(
+                            '📢 Partie terminée',
+                            'La partie est terminée.',
+                            () => {
+                                window.location.href = 'myGames.html';
+                            }
+                        );
+                    }, 500);
+                    return; // On stop ici pour éviter le reste
+                }
+
+                // 🎮 Cas joueur
+                if (data.winner_id) {
+                    const isYourVictory = data.winner_id === gameState.currentPlayerId;
+
+                    const message = isYourVictory
+                        ? 'Félicitations ! Vous avez remporté la victoire !'
+                        : 'Vous avez perdu cette partie...';
+
+                    setTimeout(() => {
+                        showNotification(
+                            isYourVictory ? '🎉 Victoire!' : '😢 Défaite',
+                            message,
+                            () => {
+                                window.location.href = 'myGames.html';
+                            }
+                        );
+                    }, 500);
+                }
             }
+
         } catch (error) {
             console.error('Error processing GAME_STATE:', error);
             console.error('data:', data);
