@@ -653,7 +653,7 @@ docker-compose up -d --build
 
 ---
 
-**Auteur**: Loris / Samuel / Gaëtan 
+**Auteur**: Loris - Samuel - Gaëtan  
 **Établissement**: EFREI Paris  
 **Dernière mise à jour**: Février 2026  
 **Version**: 1.0.0
