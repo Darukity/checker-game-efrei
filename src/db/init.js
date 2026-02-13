@@ -95,7 +95,6 @@ const initDb = async () => {
         id SERIAL PRIMARY KEY,
         from_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         to_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        game_id INT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(20) DEFAULT 'pending'
       );

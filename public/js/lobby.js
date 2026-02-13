@@ -98,8 +98,8 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
     if (!currentLobbyInvite) return;
 
     try {
-        // Create a new game via POST request
-        const response = await fetch('/api/games', {
+        // Send invitation (game not created yet)
+        const response = await fetch('/api/games/invite', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -112,37 +112,37 @@ document.getElementById('confirmInviteBtn').addEventListener('click', async () =
         });
 
         if (!response.ok) {
-            throw new Error('Erreur lors de la création de la partie');
+            throw new Error('Erreur lors de l\'envoi de l\'invitation');
         }
 
-        const game = await response.json();
+        const invitation = await response.json();
 
-        // Save username before closing modal (which sets currentLobbyInvite to null)
+        // Save invitation before closing modal
         const invitedUsername = currentLobbyInvite.username;
         closeInviteModal();
 
-        // The server will broadcast the invitation to the other player
-        // Wait for them to accept before redirecting
+        console.log('✅ Invitation envoyée à', invitedUsername);
+        // Wait for acceptance or rejection via WebSocket
     } catch (err) {
-        console.error('Erreur lors de la création de la partie:', err);
-        alert('Erreur lors de la création de la partie');
+        console.error('Erreur lors de l\'envoi de l\'invitation:', err);
+        alert('Erreur lors de l\'envoi de l\'invitation');
     }
 });
 
 function handleIncomingInvitation(data) {
-    const { fromUserId, gameId } = data;
+    const { fromUserId, invitationId } = data;
     
     // Get the username of the inviter
     fetch(`/api/user/${fromUserId}`)
         .then(res => res.json())
         .then(user => {
-            currentIncomingInvite = { fromUserId, gameId, username: user.username };
+            currentIncomingInvite = { fromUserId, invitationId, username: user.username };
             document.getElementById('globalInviteText').textContent = `${user.username} vous invite à jouer! Acceptez-vous?`;
             document.getElementById('globalInviteModal').classList.remove('hidden');
         })
         .catch(err => {
             console.error('Erreur lors de la récupération de l\'utilisateur:', err);
-            currentIncomingInvite = { fromUserId, gameId, username: 'Un adversaire' };
+            currentIncomingInvite = { fromUserId, invitationId, username: 'Un adversaire' };
             document.getElementById('globalInviteText').textContent = 'Vous avez reçu une invitation à jouer! Acceptez-vous?';
             document.getElementById('globalInviteModal').classList.remove('hidden');
         });
@@ -157,8 +157,8 @@ document.getElementById('confirmIncomingInviteBtn').addEventListener('click', as
     if (!currentIncomingInvite) return;
 
     try {
-        // Send POST request to accept the invitation
-        const response = await fetch(`/api/games/${currentIncomingInvite.gameId}/accept`, {
+        // Accept invitation (game will be created)
+        const response = await fetch(`/api/invitations/${currentIncomingInvite.invitationId}/accept`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -180,6 +180,35 @@ document.getElementById('confirmIncomingInviteBtn').addEventListener('click', as
         console.error('Erreur lors de l\'acceptation:', err);
         closeIncomingInviteModal();
         alert('Erreur lors de l\'acceptation de l\'invitation');
+    }
+});
+
+document.getElementById('rejectIncomingInviteBtn').addEventListener('click', async () => {
+    if (!currentIncomingInvite) return;
+
+    try {
+        // Reject invitation (no game created)
+        const response = await fetch(`/api/invitations/${currentIncomingInvite.invitationId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                userId: localStorage.getItem('userId')
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Erreur lors du refus');
+        }
+
+        closeIncomingInviteModal();
+        console.log('✅ Invitation refusée');
+    } catch (err) {
+        console.error('Erreur lors du refus:', err);
+        closeIncomingInviteModal();
+        alert('Erreur lors du refus de l\'invitation');
     }
 });
 

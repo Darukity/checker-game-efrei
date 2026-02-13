@@ -41,6 +41,12 @@ function setupGlobalInvitationHandler() {
     wsManager.on('GAME_INVITATION', (data) => {
         console.log('🎯 GAME_INVITATION received globally:', data);
         
+        // Don't handle if we're on lobby page (lobby.js handles it)
+        if (window.location.pathname.includes('lobby')) {
+            console.log('⚠️ On lobby page, skipping navbar handler');
+            return;
+        }
+        
         // Only show invitation if user is NOT currently in a game
         if (wsManager.isInGame()) {
             console.log('⚠️ User is in game, ignoring invitation');
@@ -58,14 +64,14 @@ function setupGlobalInvitationHandler() {
 }
 
 async function handleGlobalInvitation(data) {
-    const { fromUserId, gameId } = data;
+    const { fromUserId, invitationId } = data;
 
     // Get the inviter's username
     try {
         const response = await fetch(`/api/user/${fromUserId}`);
         const inviter = await response.json();
 
-        currentGlobalInvite = { fromUserId, gameId, inviterName: inviter.username };
+        currentGlobalInvite = { fromUserId, invitationId, inviterName: inviter.username };
 
         // Show modal
         const modal = document.getElementById('globalInviteModal');
@@ -90,7 +96,7 @@ async function acceptGlobalInvitation() {
     if (!currentGlobalInvite) return;
 
     try {
-        const response = await fetch(`/api/games/${currentGlobalInvite.gameId}/accept`, {
+        const response = await fetch(`/api/invitations/${currentGlobalInvite.invitationId}/accept`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -114,6 +120,33 @@ async function acceptGlobalInvitation() {
     }
 }
 
+async function rejectGlobalInvitation() {
+    if (!currentGlobalInvite) return;
+
+    try {
+        const response = await fetch(`/api/invitations/${currentGlobalInvite.invitationId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                userId: parseInt(localStorage.getItem('userId'))
+            })
+        });
+
+        if (response.ok) {
+            closeGlobalInviteModal();
+            console.log('✅ Invitation refusée');
+        } else {
+            alert('Erreur lors du refus de l\'invitation');
+        }
+    } catch (err) {
+        console.error('Erreur:', err);
+        alert('Erreur lors du refus de l\'invitation');
+    }
+}
+
 function closeGlobalInviteModal() {
     const modal = document.getElementById('globalInviteModal');
     if (modal) {
@@ -124,6 +157,7 @@ function closeGlobalInviteModal() {
 
 // Make functions globally available
 window.acceptGlobalInvitation = acceptGlobalInvitation;
+window.rejectGlobalInvitation = rejectGlobalInvitation;
 window.closeGlobalInviteModal = closeGlobalInviteModal;
 
 function logout() {

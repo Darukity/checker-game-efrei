@@ -61,6 +61,7 @@ function sendChatMessage() {
 function abandonGame() {
     // 🔥 BLOQUER ABANDON SI SPECTATEUR
     if (gameState.isSpectator) return;
+    if (gameState.status === 'finished') return;
 
     document.getElementById('abandonModal').classList.remove('hidden');
     

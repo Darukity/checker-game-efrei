@@ -180,7 +180,155 @@ router.get('/games/:userId', async (req, res) => {
   }
 });
 
-// Create a new game
+// Send game invitation (without creating game yet)
+router.post('/games/invite', async (req, res) => {
+  try {
+    const { player1Id, player2Id } = req.body;
+
+    if (!player1Id || !player2Id) {
+      return res.status(400).json({ error: 'player1Id et player2Id requis' });
+    }
+
+    // Create invitation without creating game
+    const result = await pool.query(
+      `INSERT INTO game_invitations (from_user_id, to_user_id, status) 
+       VALUES ($1, $2, 'pending') 
+       RETURNING *`,
+      [player1Id, player2Id]
+    );
+
+    const invitation = result.rows[0];
+
+    // Send invitation via WebSocket
+    const player2Conn = userConnections.get(parseInt(player2Id));
+    console.log(`📨 Sending invitation to player ${player2Id}`);
+    
+    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
+      player2Conn.ws.send(JSON.stringify({
+        type: 'GAME_INVITATION',
+        data: { 
+          fromUserId: player1Id,
+          invitationId: invitation.id
+        }
+      }));
+      console.log(`✅ Invitation sent to player ${player2Id}`);
+    }
+
+    res.status(201).json(invitation);
+  } catch (err) {
+    console.error('Erreur lors de la création de l\'invitation:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Accept game invitation (creates game)
+router.post('/invitations/:invitationId/accept', async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    // Get the invitation
+    const invResult = await pool.query(
+      'SELECT * FROM game_invitations WHERE id = $1 AND to_user_id = $2 AND status = $3',
+      [invitationId, userId, 'pending']
+    );
+
+    if (invResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invitation non trouvée ou expiée' });
+    }
+
+    const invitation = invResult.rows[0];
+
+    // Now create the game with both players
+    const gameResult = await pool.query(
+      `INSERT INTO games (player1_id, player2_id, game_state, current_turn, status) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [invitation.from_user_id, invitation.to_user_id, { board: initializeBoard(), currentTurn: 1 }, 1, 'in_progress']
+    );
+
+    const game = gameResult.rows[0];
+
+    // Update invitation status
+    await pool.query(
+      'UPDATE game_invitations SET status = $1 WHERE id = $2',
+      ['accepted', invitationId]
+    );
+
+    // Notify both players to redirect to game
+    const player1Conn = userConnections.get(invitation.from_user_id);
+    const player2Conn = userConnections.get(invitation.to_user_id);
+
+    const gameAcceptedMsg = JSON.stringify({
+      type: 'GAME_ACCEPTED',
+      data: { gameId: game.id }
+    });
+
+    if (player1Conn && player1Conn.ws.readyState === WebSocket.OPEN) {
+      player1Conn.ws.send(gameAcceptedMsg);
+    }
+
+    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
+      player2Conn.ws.send(gameAcceptedMsg);
+    }
+
+    res.json(game);
+  } catch (err) {
+    console.error('Erreur lors de l\'acceptation de l\'invitation:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Reject game invitation
+router.post('/invitations/:invitationId/reject', async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    // Get the invitation
+    const invResult = await pool.query(
+      'SELECT * FROM game_invitations WHERE id = $1 AND to_user_id = $2',
+      [invitationId, userId]
+    );
+
+    if (invResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invitation non trouvée' });
+    }
+
+    const invitation = invResult.rows[0];
+
+    // Update invitation status
+    await pool.query(
+      'UPDATE game_invitations SET status = $1 WHERE id = $2',
+      ['rejected', invitationId]
+    );
+
+    // Notify the inviter (optional)
+    const player1Conn = userConnections.get(invitation.from_user_id);
+
+    if (player1Conn && player1Conn.ws.readyState === WebSocket.OPEN) {
+      player1Conn.ws.send(JSON.stringify({
+        type: 'GAME_INVITATION_REJECTED',
+        data: { invitationId }
+      }));
+    }
+
+    res.json({ success: true, message: 'Invitation refusée' });
+  } catch (err) {
+    console.error('Erreur lors du refus de l\'invitation:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Create a new game (deprecated - use POST /games/invite instead)
 router.post('/games', async (req, res) => {
   try {
     const { player1Id, player2Id } = req.body;
@@ -194,7 +342,7 @@ router.post('/games', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
       [player1Id, player2Id, { board: initializeBoard(), currentTurn: null }, null, 'waiting_for_opponent']
-    ); //HERE
+    ); 
 
     const game = result.rows[0];
 
@@ -230,59 +378,6 @@ router.post('/games', async (req, res) => {
   }
 });
 
-// Accept game invitation
-router.post('/games/:gameId/accept', async (req, res) => {
-  try {
-    const { gameId } = req.params;
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId requis' });
-    }
-
-    // Update game status to in_progress, set current_turn to 1 (player1 starts), and update game_state JSONB
-    const result = await pool.query(
-      `UPDATE games 
-       SET status = 'in_progress', 
-           current_turn = 1, 
-           game_state = jsonb_set(game_state, '{currentTurn}', '1'),
-           started_at = CURRENT_TIMESTAMP 
-       WHERE id = $1 AND player2_id = $2
-       RETURNING *`,
-      [gameId, userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Partie non trouvée ou non autorisée' });
-    }
-
-    const game = result.rows[0];
-
-    // Broadcast to both players to redirect them to the game
-    const player1Conn = userConnections.get(game.player1_id);
-    const player2Conn = userConnections.get(game.player2_id);
-
-    if (player1Conn && player1Conn.ws.readyState === WebSocket.OPEN) {
-      player1Conn.ws.send(JSON.stringify({
-        type: 'GAME_ACCEPTED',
-        data: { gameId: game.id }
-      }));
-    }
-
-    if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
-      player2Conn.ws.send(JSON.stringify({
-        type: 'GAME_ACCEPTED',
-        data: { gameId: game.id }
-      }));
-    }
-
-    res.json(game);
-  } catch (err) {
-    console.error('Erreur lors de l\'acceptation de l\'invitation:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
 // Abandon a game
 router.post('/games/:gameId/abandon', async (req, res) => {
   try {
@@ -304,6 +399,10 @@ router.post('/games/:gameId/abandon', async (req, res) => {
     }
 
     const game = gameResult.rows[0];
+    
+    if (game.status === 'finished') {
+      return res.status(400).json({ error: 'Partie déjà terminée' });
+    }
 
     // Verify user is part of the game
     if (game.player1_id !== userId && game.player2_id !== userId) {
