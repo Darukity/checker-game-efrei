@@ -39,11 +39,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupGlobalInvitationHandler() {
     // Listen for incoming invitations on the general channel
     wsManager.on('GAME_INVITATION', (data) => {
-        console.log('🎯 GAME_INVITATION received globally:', data);
+        // console.log('🎯 GAME_INVITATION received globally:', data);
         
         // Only show invitation if user is NOT currently in a game
         if (wsManager.isInGame()) {
-            console.log('⚠️ User is in game, ignoring invitation');
+            // console.log('⚠️ User is in game, ignoring invitation');
             return;
         }
 
@@ -52,7 +52,7 @@ function setupGlobalInvitationHandler() {
 
     // Listen for game accepted (redirect both players)
     wsManager.on('GAME_ACCEPTED', (data) => {
-        console.log('✅ Game accepted, redirecting to game:', data.gameId);
+        // console.log('✅ Game accepted, redirecting to game:', data.gameId);
         window.location.href = `game.html?gameId=${data.gameId}`;
     });
 }

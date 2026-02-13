@@ -201,13 +201,6 @@ router.post('/games', async (req, res) => {
 
     // Broadcast invitation to the invited player via general lobby channel
     const player2Conn = userConnections.get(parseInt(player2Id));
-    console.log(`🎮 Sending invitation to player ${player2Id}, connection found:`, !!player2Conn);
-    console.log(`📋 Active connections:`, Array.from(userConnections.keys()));
-    
-    if (player2Conn) {
-      console.log(`🔍 WebSocket readyState for player ${player2Id}:`, player2Conn.ws.readyState);
-      console.log(`🔍 WebSocket.OPEN constant:`, WebSocket.OPEN);
-    }
     
     if (player2Conn && player2Conn.ws.readyState === WebSocket.OPEN) {
       const inviteMessage = JSON.stringify({
@@ -217,11 +210,7 @@ router.post('/games', async (req, res) => {
           gameId: game.id
         }
       });
-      console.log(`📤 Sending message to player ${player2Id}:`, inviteMessage);
       player2Conn.ws.send(inviteMessage);
-      console.log(`✅ Invitation sent to player ${player2Id}`);
-    } else {
-      console.log(`❌ Could not send invitation to player ${player2Id} - connection not found or not open`);
     }
 
     res.status(201).json(game);

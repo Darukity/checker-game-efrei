@@ -71,32 +71,9 @@ async function handleLobbyJoin(ws, userId) {
     type: 'USER_STATUS',
     data: { userId, status: 'online' }
   }, userId);
-
-  console.log(`✅ User ${userId} joined general channel. Total users: ${lobbyUsers.size}`);
 }
 
-function handleLobbyLeave(ws, userId) {
-  // Only remove if this WebSocket is the current one for this user
-  if (lobbyUsers.get(userId) === ws) {
-    lobbyUsers.delete(userId);
-  }
-}
 
-async function handleGameMove(ws, userId, data) {
-  // Deprecated: Game moves should now use POST /api/games/:gameId/move
-  ws.send(JSON.stringify({
-    type: 'ERROR',
-    data: { message: 'Utilisez l\'API REST pour les mouvements' }
-  }));
-}
-
-async function handleChatMessage(ws, userId, data) {
-  // Deprecated: Chat messages should now use POST /api/games/:gameId/chat
-  ws.send(JSON.stringify({
-    type: 'ERROR',
-    data: { message: 'Utilisez l\'API REST pour les messages de chat' }
-  }));
-}
 
 async function handleGameStart(ws, userId, data) {
   const { gameId } = data;
@@ -149,8 +126,6 @@ async function handleGameStart(ws, userId, data) {
         type: 'GAME_STATE',
         data: gameStateToSend
       });
-      
-      console.log(`⚠️ GAME_START ignored - game ${gameId} already in progress`);
       return;
     }
 
@@ -205,8 +180,6 @@ async function handleGameJoin(ws, userId, data) {
     }
     gameRooms.get(gameId).add(ws);
 
-    console.log(`🎮 User ${userId} joined game room ${gameId}. Room size: ${gameRooms.get(gameId).size}`);
-
     // Retrieve game state
     const game = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
 
@@ -233,10 +206,6 @@ async function handleGameJoin(ws, userId, data) {
         type: 'USER_STATUS',
         data: { userId, status: 'in_game' }
       });
-      
-      console.log(`✅ Player ${userId} joined game ${gameId}`);
-    } else {
-      console.log(`👁️ Spectator ${userId} joined game ${gameId}`);
     }
 
     const player1 = await pool.query('SELECT username FROM users WHERE id = $1', [gameData.player1_id]);
@@ -249,10 +218,6 @@ async function handleGameJoin(ws, userId, data) {
       player1_username: player1.rows[0]?.username,
       player2_username: player2?.rows[0]?.username
     };
-
-    console.log('Type of game_state:', typeof gameData.game_state);
-    console.log('game_state content:', gameData.game_state);
-    console.log('Sending GAME_STATE with board:', gameData.game_state?.board ? 'yes' : 'no');
 
     // Send game state to the joining user
     ws.send(JSON.stringify({
@@ -276,21 +241,7 @@ async function handleGameJoin(ws, userId, data) {
   }
 }
 
-async function handleInviteGame(ws, userId, data) {
-  // Deprecated: Game invitations should now use POST /api/games
-  ws.send(JSON.stringify({
-    type: 'ERROR',
-    data: { message: 'Utilisez l\'API REST pour les invitations' }
-  }));
-}
 
-async function handleAcceptInvite(ws, userId, data) {
-  // Deprecated: Accept invitations should now use POST /api/games/:gameId/accept
-  ws.send(JSON.stringify({
-    type: 'ERROR',
-    data: { message: 'Utilisez l\'API REST pour accepter les invitations' }
-  }));
-}
 
 async function handleViewGame(ws, userId, data) {
   const { gameId } = data;
@@ -346,12 +297,10 @@ async function handleGameLeave(ws, userId, data) {
     // Remove user from game room but keep them in general channel
     if (gameRooms.has(gameId)) {
       gameRooms.get(gameId).delete(ws);
-      console.log(`👋 User ${userId} left game room ${gameId}. Room size: ${gameRooms.get(gameId).size}`);
       
       // Clean up empty game rooms
       if (gameRooms.get(gameId).size === 0) {
         gameRooms.delete(gameId);
-        console.log(`🗑️ Game room ${gameId} deleted (empty)`);
       }
 
       // Notify other players in game room
@@ -405,13 +354,8 @@ module.exports = {
   setSharedData,
   handleAuth,
   handleLobbyJoin,
-  handleLobbyLeave,
-  handleGameMove,
-  handleChatMessage,
   handleGameStart,
   handleGameJoin,
   handleGameLeave,
-  handleInviteGame,
-  handleAcceptInvite,
   handleViewGame
 };

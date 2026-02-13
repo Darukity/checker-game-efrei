@@ -28,70 +28,6 @@ function isOpponentPiece(piece, playerColor) {
   return !isPlayerPiece(piece, playerColor);
 }
 
-function calculateValidMoves(board, row, col, playerColor) {
-  const moves = [];
-  const piece = board[row][col];
-
-  if (!piece || !isPlayerPiece(piece, playerColor)) return moves;
-
-  const directions = getDirections(piece);
-
-  for (const [dr, dc] of directions) {
-    const newRow = row + dr;
-    const newCol = col + dc;
-
-    // 🔹 Mouvement simple
-    if (isInsideBoard(newRow, newCol) && board[newRow][newCol] === 0) {
-        moves.push({ row: newRow, col: newCol });
-    }
-
-    // 🔥 Capture
-    const jumpRow = row + dr * 2;
-    const jumpCol = col + dc * 2;
-
-    if (
-        isInsideBoard(jumpRow, jumpCol) &&
-        board[newRow][newCol] !== 0 &&
-        !isPlayerPiece(board[newRow][newCol], playerColor) &&
-        board[jumpRow][jumpCol] === 0
-    ) {
-        moves.push({
-        row: jumpRow,
-        col: jumpCol,
-        capture: { row: newRow, col: newCol }
-        });
-    }
-    }
-
-  return moves;
-}
-
-function applyMove(board, from, to) {
-  const piece = board[from.row][from.col];
-  
-  if (!piece) {
-    throw new Error('Pas de piece a deplacer');
-  }
-  
-  board[to.row][to.col] = piece;
-  board[from.row][from.col] = 0;
-
-  if (Math.abs(to.row - from.row) === 2) {
-    const capturedRow = (from.row + to.row) / 2;
-    const capturedCol = (from.col + to.col) / 2;
-    board[capturedRow][capturedCol] = 0;
-  }
-
-  // Promotion to dame
-  if (piece === 1 && to.row === BOARD_SIZE - 1) {
-    board[to.row][to.col] = 3; // pion player1 becomes dame
-  }
-  if (piece === 2 && to.row === 0) {
-    board[to.row][to.col] = 4; // pion player2 becomes dame
-  }
-
-  return board;
-}
 
 function validateAndApplyMove(gameData, playerId, from, to) {
   const gameState = gameData.game_state;
@@ -147,13 +83,11 @@ function validateAndApplyMove(gameData, playerId, from, to) {
   const winner = checkVictory(board);
 
   if (winner) {
-    console.log(`Player ${winner} wins!`);
     gameState.status = "finished";
     gameState.winner = winner;
     return { success: true, gameData, winner };
   } else {
     gameState.currentTurn = playerColor === 1 ? 2 : 1;
-    console.log(`Turn switched. Next player: ${gameState.currentTurn}`);
     return { success: true, gameData };
   }
 }
@@ -244,7 +178,6 @@ function checkVictory(board) {
       if (board[r][c] === 2 || board[r][c] === 4) player2Pieces++;
     }
   }
-  console.log(`Player 1 pieces: ${player1Pieces}, Player 2 pieces: ${player2Pieces}`);
 
   if (player1Pieces === 0) return 2;
   if (player2Pieces === 0) return 1;
@@ -253,13 +186,5 @@ function checkVictory(board) {
 }
 
 module.exports = {
-  calculateValidMoves,
-  applyMove,
-  validateAndApplyMove,
-  isPlayerPiece,
-  isInsideBoard,
-  playerHasCapture,
-  getCaptures,
-  applyMoveWithMultiCapture,
-  checkVictory
+  validateAndApplyMove
 };

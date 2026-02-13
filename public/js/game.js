@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // If WebSocket is already authenticated (coming from lobby/other page),
     // immediately join the game room instead of waiting for AUTH_SUCCESS
     if (wsManager.isReady()) {
-        console.log(`🎮 WebSocket déjà authentifié, rejoindre la partie ${gameId}`);
+        // console.log(`🎮 WebSocket déjà authentifié, rejoindre la partie ${gameId}`);
         wsManager.joinGameRoom(gameId);
         wsManager.send('VIEW_GAME', { gameId: gameId });
     }

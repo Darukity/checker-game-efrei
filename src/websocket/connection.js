@@ -6,14 +6,9 @@ const {
   setSharedData,
   handleAuth,
   handleLobbyJoin,
-  handleLobbyLeave,
-  handleGameMove,
-  handleChatMessage,
   handleGameStart,
   handleGameJoin,
   handleGameLeave,
-  handleInviteGame,
-  handleAcceptInvite,
   handleViewGame
 } = require('./handlers');
 
@@ -22,7 +17,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
   setSharedData(userConnections, gameRooms, lobbyUsers);
 
   wss.on('connection', (ws, req) => {
-    console.log('📱 Nouveau client WebSocket connecté');
     let userId = null;
     let currentGameId = null;
 
@@ -87,19 +81,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
             await handleLobbyJoin(ws, userId);
             break;
 
-          case 'LOBBY_LEAVE':
-            // Deprecated - users stay in general channel until disconnect
-            // Keep for backward compatibility but do nothing
-            break;
-
-          case 'GAME_MOVE':
-            await handleGameMove(ws, userId, msgData);
-            break;
-
-          case 'CHAT_MESSAGE':
-            await handleChatMessage(ws, userId, msgData);
-            break;
-
           case 'GAME_START':
             await handleGameStart(ws, userId, msgData);
             break;
@@ -114,14 +95,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
               handleGameLeave(ws, userId, { gameId: currentGameId });
               currentGameId = null;
             }
-            break;
-
-          case 'INVITE_GAME':
-            await handleInviteGame(ws, userId, msgData);
-            break;
-
-          case 'ACCEPT_INVITE':
-            await handleAcceptInvite(ws, userId, msgData);
             break;
 
           case 'VIEW_GAME':
@@ -151,7 +124,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
     });
 
     ws.on('close', async () => {
-      console.log(`👋 Client déconnecté (userId: ${userId})`);
       if (userId) {
         // Always remove from general channel (lobby)
         if (lobbyUsers.get(userId) === ws) {

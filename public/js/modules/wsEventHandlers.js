@@ -8,7 +8,7 @@ import { addChatMessage, showNotification, updateViewerCount } from './uiHandler
 function setupWebSocketHandlers(wsManager) {
     // Auth success - join the game room (while staying in general channel)
     wsManager.on('AUTH_SUCCESS', () => {
-        console.log(`🎮 Rejoindre la partie ${gameState.gameId}`);
+        // console.log(`🎮 Rejoindre la partie ${gameState.gameId}`);
         wsManager.joinGameRoom(gameState.gameId);
         // Also join as viewer for spectator support
         wsManager.send('VIEW_GAME', { gameId: gameState.gameId });
@@ -16,13 +16,13 @@ function setupWebSocketHandlers(wsManager) {
 
     // Receive game state from server (including after moves)
     wsManager.on('GAME_STATE', (data) => {
-        console.log('📨 GAME_STATE received:', {
+        /* console.log('📨 GAME_STATE received:', {
             current_turn: data.current_turn,
             status: data.status,
             player1_id: data.player1_id,
             player2_id: data.player2_id,
             currentPlayerId: gameState.currentPlayerId
-        });
+        }); */
         
         try {
             const playerNames = updateGameStateFromServer(data);
@@ -32,7 +32,7 @@ function setupWebSocketHandlers(wsManager) {
             // Clear the selection after receiving game state
             clearSelection();
             
-            console.log('Board after update:', gameState.board);
+            // console.log('Board after update:', gameState.board);
             renderBoard(handleSquareClick);
             updateGameStatus();
 
@@ -62,7 +62,7 @@ function setupWebSocketHandlers(wsManager) {
 
     // Game started - GAME_STATE is sent before this with full state
     wsManager.on('GAME_START', (data) => {
-        console.log('🎮 GAME_START event received - game has started');
+        // console.log('🎮 GAME_START event received - game has started');
         // Don't override turn logic here - GAME_STATE handler already set everything correctly
         // Just update the UI if needed
         updateGameStatus();
@@ -72,31 +72,31 @@ function setupWebSocketHandlers(wsManager) {
     wsManager.on('PLAYER_JOINED', (data) => {
         // Spectators should ignore PLAYER_JOINED events
         if (gameState.isSpectator) {
-            console.log('Spectateur - ignoring PLAYER_JOINED event');
+            // console.log('Spectateur - ignoring PLAYER_JOINED event');
             return;
         }
         
         if (data.userId !== gameState.currentPlayerId) {
-            console.log('Adversaire connecte');
+            // console.log('Adversaire connecte');
             
             // Only start game if it's NOT already in progress
             // This prevents resetting the game when a player reconnects/refreshes
             if (gameState.gameStatus !== 'in_progress' && gameState.playerColor === 1) {
-                console.log('Je suis le joueur 1, je demarre la partie automatiquement');
+                // console.log('Je suis le joueur 1, je demarre la partie automatiquement');
                 setTimeout(() => {
                     wsManager.send('GAME_START', { gameId: gameState.gameId });
                 }, 500);
             } else if (gameState.gameStatus === 'in_progress') {
-                console.log('Partie deja en cours - pas de restart');
+                // console.log('Partie deja en cours - pas de restart');
             } else {
-                console.log('Je suis le joueur 2, j\'attends que le joueur 1 demarre');
+                // console.log('Je suis le joueur 2, j\'attends que le joueur 1 demarre');
             }
         }
     });
 
     // Game abandoned by opponent
     wsManager.on('GAME_ABANDONED', (data) => {
-        console.log('Partie abandonnée:', data);
+        // console.log('Partie abandonnée:', data);
         // Leave game room
         wsManager.leaveGameRoom();
         showNotification(
@@ -120,14 +120,14 @@ function setupWebSocketHandlers(wsManager) {
 
     // Handle player disconnect
     wsManager.on('PLAYER_DISCONNECTED', (data) => {
-        console.log('Joueur déconnecté:', data);
+        // console.log('Joueur déconnecté:', data);
         // Notification removed - was too bothersome
         // Players can see connection status in navbar instead
     });
 
     // Handle player left game
     wsManager.on('PLAYER_LEFT', (data) => {
-        console.log('Joueur a quitté:', data);
+        // console.log('Joueur a quitté:', data);
         // Only show notification if a player (not spectator) left
         // Check if the leaving user is one of the actual players
         const isActualPlayer = data.userId === gameState.opponentId || 

@@ -7,7 +7,7 @@ let currentIncomingInvite = null;
 document.addEventListener('DOMContentLoaded', async () => {
     // Listen for general channel updates (automatic after AUTH)
     wsManager.on('AUTH_SUCCESS', () => {
-        console.log('✅ Connected to general channel automatically');
+        // console.log('✅ Connected to general channel automatically');
         // No need to send LOBBY_JOIN - server does it automatically
     });
 
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     wsManager.on('USER_STATUS', (data) => {
-        console.log(`Statut utilisateur ${data.userId}: ${data.status}`);
+        // console.log(`Statut utilisateur ${data.userId}: ${data.status}`);
         // Debounce la récupération de la liste complète via API REST
         // Cela évite les boucles WebSocket
         clearTimeout(lobbyUpdateTimeout);
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     wsManager.on('GAME_INVITATION', (data) => {
-        console.log('🎯 GAME_INVITATION received in lobby:', data);
+        // console.log('🎯 GAME_INVITATION received in lobby:', data);
         handleIncomingInvitation(data);
     });
 

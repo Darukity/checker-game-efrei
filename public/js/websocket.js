@@ -34,7 +34,7 @@ class WebSocketManager {
     connect() {
         // Si déjà connecté, retourner promesse résolue
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-            console.log('✅ WebSocket déjà connecté');
+            // console.log('✅ WebSocket déjà connecté');
             return Promise.resolve();
         }
 
@@ -49,7 +49,7 @@ class WebSocketManager {
                 this.ws = new WebSocket(this.url);
 
                 this.ws.onopen = () => {
-                    console.log('✅ WebSocket connecté');
+                    // console.log('✅ WebSocket connecté');
                     this.isConnected = true;
                     this.reconnectAttempts = 0;
                     this.updateConnectionStatus('online');
@@ -90,7 +90,7 @@ class WebSocketManager {
                 };
 
                 this.ws.onclose = () => {
-                    console.log('❌ WebSocket déconnecté');
+                    // console.log('❌ WebSocket déconnecté');
                     this.isConnected = false;
                     this.isAuthenticated = false;
                     this.updateConnectionStatus('offline');
@@ -150,11 +150,11 @@ class WebSocketManager {
 
     handleMessage(message) {
         const { type, data } = message;
-        console.log(`📨 WebSocket received message:`, type, data);
+        // console.log(`📨 WebSocket received message:`, type, data);
 
         switch (type) {
             case 'AUTH_SUCCESS':
-                console.log('✅ Authentification réussie');
+                // console.log('✅ Authentification réussie');
                 this.isAuthenticated = true;
                 this.isInGeneralChannel = true; // Server automatically adds to general channel
                 this.emit('AUTH_SUCCESS', data);
@@ -166,7 +166,7 @@ class WebSocketManager {
                 break;
 
             case 'GAME_LEAVE_SUCCESS':
-                console.log('✅ Left game room:', data.gameId);
+                // console.log('✅ Left game room:', data.gameId);
                 this.currentGameId = null;
                 this.emit('GAME_LEAVE_SUCCESS', data);
                 break;
@@ -196,7 +196,7 @@ class WebSocketManager {
 
         this.reconnectAttempts++;
         this.updateConnectionStatus('reconnecting');
-        console.log(`🔄 Tentative de reconnexion ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+        // console.log(`🔄 Tentative de reconnexion ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
 
         setTimeout(() => {
             this.connect().catch(() => {
@@ -279,7 +279,7 @@ class WebSocketManager {
 
         this.currentGameId = gameId;
         this.send('GAME_JOIN', { gameId });
-        console.log(`🎮 Joining game room ${gameId}`);
+        // console.log(`🎮 Joining game room ${gameId}`);
     }
 
     /**
@@ -293,7 +293,7 @@ class WebSocketManager {
 
         const gameId = this.currentGameId;
         this.send('GAME_LEAVE', { gameId });
-        console.log(`👋 Leaving game room ${gameId}`);
+        // console.log(`👋 Leaving game room ${gameId}`);
         // currentGameId will be set to null when GAME_LEAVE_SUCCESS is received
     }
 
