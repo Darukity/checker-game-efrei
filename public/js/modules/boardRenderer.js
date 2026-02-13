@@ -83,7 +83,14 @@ function updateGameStatus() {
         turnStatus.textContent = '⏳ En attente de l\'adversaire...';
         turnIndicator.className = 'turn-indicator waiting';
     } else if (gameState.gameStatus === 'in_progress') {
-        if (gameState.isPlayerTurn) {
+        if (gameState.isSpectator) {
+            // Show which player's turn it is for spectators
+            const currentPlayerName = gameState.currentTurn === 1 
+                ? gameState.player1Name 
+                : gameState.player2Name;
+            turnStatus.textContent = `⏳ Au tour de ${currentPlayerName}`;
+            turnIndicator.className = 'turn-indicator opponent-turn';
+        } else if (gameState.isPlayerTurn) {
             turnStatus.textContent = '🎮 C\'est votre tour de jouer !';
             turnIndicator.className = 'turn-indicator your-turn';
         } else {
@@ -101,8 +108,20 @@ function updatePlayerNames(player1Name, player2Name) {
     document.getElementById('player2Name').textContent = player2Name;
 }
 
+function updateSpectatorUI(isSpectator) {
+    const abandonBtn = document.getElementById('abandonBtn');
+    if (abandonBtn) {
+        if (isSpectator) {
+            abandonBtn.style.display = 'none';
+        } else {
+            abandonBtn.style.display = '';
+        }
+    }
+}
+
 export {
     renderBoard,
     updateGameStatus,
-    updatePlayerNames
+    updatePlayerNames,
+    updateSpectatorUI
 };

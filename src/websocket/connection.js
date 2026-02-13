@@ -6,14 +6,9 @@ const {
   setSharedData,
   handleAuth,
   handleLobbyJoin,
-  handleLobbyLeave,
-  handleGameMove,
-  handleChatMessage,
   handleGameStart,
   handleGameJoin,
   handleGameLeave,
-  handleInviteGame,
-  handleAcceptInvite,
   handleViewGame
 } = require('./handlers');
 
@@ -22,7 +17,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
   setSharedData(userConnections, gameRooms, lobbyUsers);
 
   wss.on('connection', (ws, req) => {
-    console.log('📱 Nouveau client WebSocket connecté');
     let userId = null;
     let currentGameId = null;
 
@@ -87,19 +81,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
             await handleLobbyJoin(ws, userId);
             break;
 
-          case 'LOBBY_LEAVE':
-            // Deprecated - users stay in general channel until disconnect
-            // Keep for backward compatibility but do nothing
-            break;
-
-          case 'GAME_MOVE':
-            await handleGameMove(ws, userId, msgData);
-            break;
-
-          case 'CHAT_MESSAGE':
-            await handleChatMessage(ws, userId, msgData);
-            break;
-
           case 'GAME_START':
             await handleGameStart(ws, userId, msgData);
             break;
@@ -114,14 +95,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
               handleGameLeave(ws, userId, { gameId: currentGameId });
               currentGameId = null;
             }
-            break;
-
-          case 'INVITE_GAME':
-            await handleInviteGame(ws, userId, msgData);
-            break;
-
-          case 'ACCEPT_INVITE':
-            await handleAcceptInvite(ws, userId, msgData);
             break;
 
           case 'VIEW_GAME':
@@ -151,7 +124,6 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
     });
 
     ws.on('close', async () => {
-      console.log(`👋 Client déconnecté (userId: ${userId})`);
       if (userId) {
         // Always remove from general channel (lobby)
         if (lobbyUsers.get(userId) === ws) {
@@ -174,6 +146,33 @@ function setupWebSocket(wss, userConnections, gameRooms, lobbyUsers) {
             type: 'PLAYER_DISCONNECTED',
             data: { userId, gameId: currentGameId }
           });
+          
+          // Remove from game_viewers table and update count
+          try {
+            const pool = require('../db/pool');
+            await pool.query(
+              'DELETE FROM game_viewers WHERE game_id = $1 AND user_id = $2',
+              [currentGameId, userId]
+            );
+
+            // Get game info to exclude actual players from viewer count
+            const game = await pool.query('SELECT player1_id, player2_id FROM games WHERE id = $1', [currentGameId]);
+            
+            if (game.rows.length > 0) {
+              const viewerCount = await pool.query(
+                'SELECT COUNT(*) as count FROM game_viewers WHERE game_id = $1 AND user_id NOT IN ($2, $3)',
+                [currentGameId, game.rows[0].player1_id, game.rows[0].player2_id]
+              );
+
+              // Broadcast updated viewer count
+              broadcastToGameRoom(gameRooms, currentGameId, {
+                type: 'VIEWER_COUNT_UPDATE',
+                data: { gameId: currentGameId, count: viewerCount.rows[0].count }
+              });
+            }
+          } catch (err) {
+            console.error('Erreur lors de la mise à jour des viewers après déconnexion:', err);
+          }
         }
 
         // Retirer de userConnections si c'est bien cette WebSocket
