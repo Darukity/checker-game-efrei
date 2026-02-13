@@ -165,7 +165,6 @@ checker-game-efrei/
 ├── Dockerfile                     # Image Docker de l'app
 ├── package.json                   # Dépendances Node.js
 ├── .env                          # Variables d'environnement (à créer)
-├── ARCHITECTURE.md                # Documentation architecture
 └── README.md                      # Ce fichier
 
 ```
@@ -652,22 +651,9 @@ docker-compose up -d --build
 5. **Mouvement Dame**: Les Dames peuvent se déplacer en diagonal avant et arrière
 6. **Victoire**: Capturer tous les pions adverses ou bloquer tous leurs mouvements
 
-## 🤝 Contribution
-
-Ce projet est développé dans le cadre d'un cours EFREI. Pour contribuer:
-1. Fork le projet
-2. Créer une branche (`git checkout -b feature/amelioration`)
-3. Commit les changements (`git commit -m 'Ajout fonctionnalité'`)
-4. Push vers la branche (`git push origin feature/amelioration`)
-5. Ouvrir une Pull Request
-
-## 📝 Licence
-
-MIT License - Voir le fichier LICENSE pour plus de détails
-
 ---
 
-**Auteur**: Loris  
+**Auteur**: Loris / Samuel / Gaëtan 
 **Établissement**: EFREI Paris  
 **Dernière mise à jour**: Février 2026  
 **Version**: 1.0.0
