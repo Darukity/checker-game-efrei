@@ -3,7 +3,8 @@
 import { gameState, updateGameStateFromServer, applyMove } from './gameState.js';
 import { renderBoard, updateGameStatus, updatePlayerNames } from './boardRenderer.js';
 import { handleSquareClick } from './moveLogic.js';
-import { addChatMessage, showNotification, updateViewerCount } from './uiHandlers.js';
+import { addChatMessage, showNotification, updateViewerCount, loadChatHistory } from './uiHandlers.js';
+
 
 function setupWebSocketHandlers(wsManager) {
     // Auth success - join the game
@@ -13,7 +14,7 @@ function setupWebSocketHandlers(wsManager) {
     });
 
     // Receive game state from server
-    wsManager.on('GAME_STATE', (data) => {
+    wsManager.on('GAME_STATE', async (data) => {
         console.log('État de la partie reçu:', data);
         console.log('Type of game_state:', typeof data.game_state);
         
@@ -24,6 +25,7 @@ function setupWebSocketHandlers(wsManager) {
             console.log('Board after initialization:', gameState.board);
             renderBoard(handleSquareClick);
             updateGameStatus();
+            await loadChatHistory();
         } catch (error) {
             console.error('Error processing GAME_STATE:', error);
             console.error('data:', data);

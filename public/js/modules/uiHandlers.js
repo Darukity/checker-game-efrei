@@ -8,6 +8,31 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function clearChat() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) chatMessages.innerHTML = '';
+}
+
+async function loadChatHistory() {
+    try {
+        const response = await fetch(`/api/games/${gameState.gameId}/chat`);
+        const messages = await response.json();
+
+        clearChat();
+
+        messages.forEach(msg => {
+            addChatMessage({
+                userId: msg.user_id,
+                username: msg.username,
+                message: msg.message
+            });
+        });
+
+    } catch (err) {
+        console.error('Erreur chargement historique chat:', err);
+    }
+}
+
 function addChatMessage(data) {
     const chatMessages = document.getElementById('chatMessages');
     const msgEl = document.createElement('div');
@@ -16,7 +41,10 @@ function addChatMessage(data) {
     const isFromCurrentUser = data.userId === gameState.currentPlayerId;
     msgEl.className = `chat-message ${isFromCurrentUser ? 'own' : ''}`;
     
-    const sender = isFromCurrentUser ? 'Vous' : `Joueur ${data.userId}`;
+    const sender = isFromCurrentUser
+    ? 'Vous'
+    : (data.username || `Utilisateur ${data.userId}`);
+
     
     msgEl.innerHTML = `<strong>${sender}</strong>: ${escapeHtml(data.message)}`;
     chatMessages.appendChild(msgEl);

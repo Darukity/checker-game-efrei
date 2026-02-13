@@ -175,6 +175,31 @@ router.get('/games/:userId', async (req, res) => {
   }
 });
 
+// Get chat history
+router.get('/games/:gameId/chat', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+
+    const result = await pool.query(`
+      SELECT 
+        cm.id,
+        cm.message,
+        cm.created_at,
+        cm.user_id,
+        u.username
+      FROM chat_messages cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.game_id = $1
+      ORDER BY cm.created_at ASC
+    `, [gameId]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur récupération chat:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Create a new game
 router.post('/games', async (req, res) => {
   try {
@@ -417,17 +442,26 @@ router.post('/games/:gameId/chat', async (req, res) => {
 
     const chatMsg = result.rows[0];
 
-    // Broadcast to all players in game room via WebSocket
-    broadcastToGameRoom(gameRooms, gameId, {
-      type: 'CHAT_MESSAGE',
-      data: {
-        gameId,
-        userId,
-        message,
-        id: chatMsg.id,
-        createdAt: chatMsg.created_at
-      }
-    });
+    // Récupérer username
+    const userResult = await pool.query(
+   'SELECT username FROM users WHERE id = $1',
+  [userId]
+  );
+
+  const username = userResult.rows[0]?.username || 'Utilisateur';
+
+  // Broadcast to all players in game room via WebSocket
+  broadcastToGameRoom(gameRooms, gameId, {
+    type: 'CHAT_MESSAGE',
+    data: {
+      gameId,
+      userId,
+      username,
+      message,
+     id: chatMsg.id,
+     createdAt: chatMsg.created_at
+  }
+});
 
     res.json({ success: true, messageId: chatMsg.id });
   } catch (err) {
