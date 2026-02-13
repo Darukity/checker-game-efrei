@@ -159,5 +159,6 @@ export {
     closeAbandonModal,
     closeNotificationModal,
     showNotification,
+    loadChatHistory,
     updateViewerCount
 };
